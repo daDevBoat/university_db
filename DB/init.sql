@@ -34,9 +34,11 @@ CREATE TABLE teaching_activity (
     factor REAL NOT NULL
 );
 
--- ADD MORE HERE
 CREATE TABLE planned_activity (
-    planned_activity_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
+    planned_activity_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    instance_id INT REFERENCES course_instance(instance_id) NOT NULL,
+    teaching_activity_id INT REFERENCES teaching_activity(teaching_activity_id) NOT NULL,
+    planned_hours REAL NOT NULL
 );
 
 CREATE TABLE department (
@@ -94,3 +96,71 @@ CREATE TABLE employee_planned_activity (
 
 /* TRIGGERS and FUNCTIONS */
 
+CREATE FUNCTION calculate_exam_admin_hours() RETURNS trigger AS $$
+DECLARE
+    num_students INT;
+    hp_value REAL;
+    exam_ta_id INT;
+    admin_ta_id INT;
+BEGIN
+    num_students := NEW.num_students;
+
+    SELECT hp INTO hp_value
+    FROM course_layout
+    WHERE course_layout_id = NEW.course_layout_id;
+
+    SELECT teaching_activity_id INTO exam_ta_id 
+    FROM teaching_activity
+    WHERE activity_name = 'exam';
+
+    SELECT teaching_activity_id INTO admin_ta_id 
+    FROM teaching_activity
+    WHERE activity_name = 'admin';
+    
+
+    -- Examination hour = 32+ 0.725* #Students 
+    INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
+    VALUES (NEW.instance_id, exam_ta_id, 32 + 0.725 * num_students);
+
+    -- Admin hours = 2*HP+ 28+ 0.2* #Students 
+    INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
+    VALUES (NEW.instance_id, admin_ta_id, 2 * hp_value + 28 + 0.2 * num_students);
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER course_instance_trigger
+AFTER INSERT ON course_instance
+FOR EACH ROW
+EXECUTE FUNCTION calculate_exam_admin_hours();
+
+
+/*
+QUERIES:
+
+INSERT INTO teaching_activity (activity_name, factor)
+VALUES ('exam', 1);
+
+INSERT INTO teaching_activity (activity_name, factor)
+VALUES ('admin', 1);
+
+INSERT INTO course_layout (course_code, course_name, min_students, max_students, hp, study_period)
+VALUES ('IV1351', 'Data Storage Paradigms', 20, 300, 7.5, '1');
+
+INSERT INTO course_instance (course_layout_id, num_students, study_year)
+SELECT course_layout_id, 200, 2025
+FROM course_layout
+WHERE course_code = 'IV1351';
+
+
+SELECT l.course_code, l.course_name, t.activity_name, p.planned_hours
+FROM planned_activity p
+JOIN course_instance i ON i.instance_id = p.instance_id
+JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+JOIN teaching_activity t ON t.teaching_activity_id = p.teaching_activity_id
+WHERE l.course_code = 'IV1351';
+
+
+*/
