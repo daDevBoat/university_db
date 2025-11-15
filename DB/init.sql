@@ -54,7 +54,9 @@ CREATE TABLE person (
     personal_number CHAR(12) NOT NULL UNIQUE,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
-    address VARCHAR(100) NOT NULL
+    street VARCHAR(100) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    zip CHAR(5) NOT NULL
 );
 
 CREATE TABLE job_title (
@@ -122,7 +124,30 @@ VALUES
     ('admin', 1);
 
 
-CREATE FUNCTION calculate_exam_admin_hours() RETURNS trigger AS $$
+/* Assumes that the start of the academic year is 1st of Jaunary and each period is 3 months */
+CREATE OR REPLACE FUNCTION get_current_period()
+RETURNS INT AS $$
+DECLARE
+    period INT;
+    date_no_year CHAR(5);
+BEGIN
+    SELECT TO_CHAR(CURRENT_DATE, 'MM-DD') INTO date_no_year;
+    RAISE NOTICE 'date: %', date_no_year;
+    
+    IF date_no_year < '04-01' THEN
+        RETURN 1;
+    ELSIF date_no_year < '07-01' THEN
+        RETURN 2;
+    ELSIF date_no_year < '10-01' THEN 
+        RETURN 3;
+    ELSE
+        RETURN 4;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION calculate_exam_admin_hours() RETURNS trigger AS $$
 DECLARE
     num_students INT;
     hp_value REAL;
@@ -138,12 +163,12 @@ BEGIN
     SELECT t.teaching_activity_id INTO exam_ta_id 
     FROM teaching_activity t
     JOIN rule r ON r.target_name = t.activity_name
-    WHERE r.rule_id = 1;
+    WHERE r.name = 'exam_attr_name';
 
     SELECT t.teaching_activity_id INTO admin_ta_id 
     FROM teaching_activity t
     JOIN rule r ON r.target_name = t.activity_name
-    WHERE r.rule_id = 2;
+    WHERE r.name = 'admin_attr_name';
 
     -- Examination hour = 32+ 0.725* #Students 
     INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
@@ -157,16 +182,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE FUNCTION course_instance_limit_check() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION planned_activity_limit_check() RETURNS trigger AS $$
 DECLARE
-    
+    in_id INT;
+    num_of_instances INT;
 BEGIN
+    SELECT instance_id INTO in_id
+    FROM planned_activity
+    WHERE planned_activity_id = NEW.planned_activity_id;
+
+    -- NEEDS TO CHECK IF COURSE IS ACTIVE OR NOT
+
+    SELECT COUNT(DISTINCT p.instance_id) INTO num_of_instances
+    FROM(
+        SELECT employement_id, planned_activity_id
+        FROM employee_planned_activity
+        WHERE employement_id = NEW.employement_id) AS f
+    JOIN planned_activity p ON f.planned_activity_id = p.planned_activity_id;
+
+    IF num_of_instances > 3 THEN
+        RAISE EXCEPTION 'An employee can only be allocated to max 4 active course instances';
+    END IF;
     
+    RAISE NOTICE '# of instances for employee: %', num_of_instances + 1;
 
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE TRIGGER planned_activity_limit_trigger
+BEFORE INSERT ON employee_planned_activity
+FOR EACH ROW
+EXECUTE FUNCTION planned_activity_limit_check();
 
 CREATE TRIGGER course_instance_calc_trigger
 AFTER INSERT ON course_instance
