@@ -6,9 +6,12 @@ CREATE DATABASE university_db;
 DROP TYPE IF EXISTS period_enum;
 CREATE TYPE period_enum AS ENUM('1', '2', '3', '4');
 
-CREATE TABLE rules (
-    name VARCHAR(50) PRIMARY KEY,
-    limit_value INT NOT NULL
+CREATE TABLE rule (
+    rule_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name VARCHAR(50) UNIQUE,
+    limit_value INT,
+    target_name VARCHAR(50),
+    CHECK (limit_value IS NOT NULL OR target_name IS NOT NULL)
 );
 
 CREATE TABLE course_layout (
@@ -51,7 +54,6 @@ CREATE TABLE person (
     personal_number CHAR(12) NOT NULL UNIQUE,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
-    phoneNumber VARCHAR(15) NOT NULL,
     address VARCHAR(100) NOT NULL
 );
 
@@ -93,8 +95,32 @@ CREATE TABLE employee_planned_activity (
     PRIMARY KEY (employement_id, planned_activity_id)
 );
 
+CREATE TABLE phone (
+    phone_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    phone_number CHAR(15) NOT NULL UNIQUE
+);
+
+CREATE TABLE person_phone (
+    person_id INT REFERENCES person (person_id) NOT NULL,
+    phone_id INT REFERENCES phone (phone_id) NOT NULL,
+    PRIMARY KEY (person_id, phone_id)
+);
 
 /* TRIGGERS and FUNCTIONS */
+
+-- First add the neccesay trigger rules
+INSERT INTO rule (name, limit_value, target_name)
+VALUES 
+    ('exam_attr_name', NULL, 'exam'),
+    ('admin_attr_name', NULL, 'admin'),
+    ('employee_instance_limit', 4, NULL);
+
+-- Insert exam and admin into teaching_activity (so they are always there) 
+INSERT INTO teaching_activity (activity_name, factor)
+VALUES 
+    ('exam', 1),
+    ('admin', 1);
+
 
 CREATE FUNCTION calculate_exam_admin_hours() RETURNS trigger AS $$
 DECLARE
@@ -109,14 +135,15 @@ BEGIN
     FROM course_layout
     WHERE course_layout_id = NEW.course_layout_id;
 
-    SELECT teaching_activity_id INTO exam_ta_id 
-    FROM teaching_activity
-    WHERE activity_name = 'exam';
+    SELECT t.teaching_activity_id INTO exam_ta_id 
+    FROM teaching_activity t
+    JOIN rule r ON r.target_name = t.activity_name
+    WHERE r.rule_id = 1;
 
-    SELECT teaching_activity_id INTO admin_ta_id 
-    FROM teaching_activity
-    WHERE activity_name = 'admin';
-    
+    SELECT t.teaching_activity_id INTO admin_ta_id 
+    FROM teaching_activity t
+    JOIN rule r ON r.target_name = t.activity_name
+    WHERE r.rule_id = 2;
 
     -- Examination hour = 32+ 0.725* #Students 
     INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
@@ -130,8 +157,18 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE FUNCTION course_instance_limit_check() RETURNS trigger AS $$
+DECLARE
+    
+BEGIN
+    
 
-CREATE TRIGGER course_instance_trigger
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER course_instance_calc_trigger
 AFTER INSERT ON course_instance
 FOR EACH ROW
 EXECUTE FUNCTION calculate_exam_admin_hours();

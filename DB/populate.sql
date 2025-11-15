@@ -1,8 +1,4 @@
-INSERT INTO teaching_activity (activity_name, factor)
-VALUES ('exam', 1);
 
-INSERT INTO teaching_activity (activity_name, factor)
-VALUES ('admin', 1);
 
 INSERT INTO course_layout (course_code, course_name, min_students, max_students, hp, study_period)
 VALUES ('IV1351', 'Data Storage Paradigms', 20, 300, 7.5, '1');
