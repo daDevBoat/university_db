@@ -1,13 +1,13 @@
 INSERT INTO course_layout (course_code, course_name, min_students, max_students, hp, study_period)
 VALUES 
     ('IV1351', 'Data Storage Paradigms', 20, 300, 7.5, '1'),
-    ('IV1352', 'Data Cloud Storage', 20, 300, 7.5, '2'),
-    ('IV1353', 'Data Storage Design', 20, 300, 7.5, '3'),
-    ('IV1354', 'Data Modeling', 20, 300, 7.5, '4'),
+    ('IV1352', 'Data Cloud Storage', 20, 300, 7.5, '1'),
+    ('IV1353', 'Data Storage Design', 20, 300, 7.5, '1'),
+    ('IV1354', 'Data Modeling', 20, 300, 7.5, '2'),
     ('IV1355', 'Data Handling', 20, 300, 7.5, '1');
 
 INSERT INTO course_instance (course_layout_id, num_students, study_year)
-SELECT course_layout_id, 200, 2025
+SELECT course_layout_id, 300, 2025
 FROM course_layout
 WHERE course_code = 'IV1351'
 UNION ALL
@@ -23,7 +23,7 @@ SELECT course_layout_id, 200, 2025
 FROM course_layout
 WHERE course_code = 'IV1354'
 UNION ALL
-SELECT course_layout_id, 200, 2025
+SELECT course_layout_id, 20, 2025
 FROM course_layout
 WHERE course_code = 'IV1355';
 
