@@ -208,6 +208,7 @@ DECLARE
     num_of_instances INT;
     year INT;
     period period_enum;
+    instance_limit INT;
 BEGIN
     SELECT instance_id INTO in_id
     FROM planned_activity
@@ -220,6 +221,10 @@ BEGIN
     SELECT study_period INTO period
     FROM course_layout
     WHERE course_layout_id = lay_id;
+
+    SELECT limit_value INTO instance_limit
+    FROM rule
+    WHERE name = 'employee_instance_limit';
 
     -- RAISE NOTICE 'year: % period: %', year, period;
 
@@ -241,8 +246,8 @@ BEGIN
     JOIN course_layout l ON l.course_layout_id = i.course_layout_id
     WHERE l.study_period = period AND i.study_year = year;
     
-    IF num_of_instances > 3 THEN
-        RAISE EXCEPTION 'An employee can only be allocated to max 4 courses in the same period';
+    IF num_of_instances >= instance_limit THEN
+        RAISE EXCEPTION 'An employee can only be allocated to max % courses in the same period', instance_limit;
     END IF;
     
     RAISE NOTICE '# of instances for employee: %', num_of_instances + 1;

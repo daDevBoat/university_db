@@ -3,7 +3,7 @@ VALUES
     ('IV1351', 'Data Storage Paradigms', 20, 300, 7.5, '1'),
     ('IV1352', 'Data Cloud Storage', 20, 300, 7.5, '1'),
     ('IV1353', 'Data Storage Design', 20, 300, 7.5, '1'),
-    ('IV1354', 'Data Modeling', 20, 300, 7.5, '2'),
+    ('IV1354', 'Data Modeling', 20, 300, 7.5, '1'),
     ('IV1355', 'Data Handling', 20, 300, 7.5, '1');
 
 INSERT INTO course_instance (course_layout_id, num_students, study_year)
