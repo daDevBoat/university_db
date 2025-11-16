@@ -209,6 +209,7 @@ DECLARE
     year INT;
     period period_enum;
     instance_limit INT;
+    job_t VARCHAR(100);
 BEGIN
     SELECT instance_id INTO in_id
     FROM planned_activity
