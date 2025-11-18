@@ -26,7 +26,7 @@ CREATE TABLE course_layout (
 
 CREATE TABLE course_instance (
     instance_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    course_layout_id INT REFERENCES course_layout(course_layout_id) NOT NULL,
+    course_layout_id INT REFERENCES course_layout(course_layout_id) NOT NULL ON UPDATE CASCADE,
     num_students INT NOT NULL,
     study_year INT NOT NULL
 );
@@ -39,8 +39,8 @@ CREATE TABLE teaching_activity (
 
 CREATE TABLE planned_activity (
     planned_activity_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    instance_id INT REFERENCES course_instance(instance_id) NOT NULL,
-    teaching_activity_id INT REFERENCES teaching_activity(teaching_activity_id) NOT NULL,
+    instance_id INT REFERENCES course_instance(instance_id) NOT NULL ON UPDATE CASCADE,
+    teaching_activity_id INT REFERENCES teaching_activity(teaching_activity_id) NOT NULL ON UPDATE CASCADE,
     planned_hours REAL NOT NULL
 );
 
@@ -71,29 +71,29 @@ CREATE TABLE skill_set (
 
 CREATE TABLE employee (
     employement_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    person_id INT REFERENCES person(person_id) NOT NULL,
-    department_id INT REFERENCES department(department_id) NOT NULL,
-    job_title_id INT REFERENCES job_title(job_title_id) NOT NULL,
-    supervisor_id INT REFERENCES employee(employement_id),
+    person_id INT REFERENCES person(person_id) NOT NULL ON UPDATE CASCADE,
+    department_id INT REFERENCES department(department_id) NOT NULL ON UPDATE CASCADE,
+    job_title_id INT REFERENCES job_title(job_title_id) NOT NULL ON UPDATE CASCADE,
+    supervisor_id INT REFERENCES employee(employement_id) ON UPDATE CASCADE,
     is_active BIT(1) DEFAULT B'1' NOT NULL
 );
 
 CREATE TABLE salary_history (
-    employement_id INT REFERENCES employee(employement_id) NOT NULL,
+    employement_id INT REFERENCES employee(employement_id) NOT NULL ON UPDATE CASCADE,
     year INT NOT NULL,
     period period_enum NOT NULL,
     PRIMARY KEY (employement_id, year, period)
 );
 
 CREATE TABLE employee_skill_set (
-    employement_id INT REFERENCES employee(employement_id) NOT NULL,
-    skill_set_id INT REFERENCES skill_set(skill_set_id) NOT NULL,
+    employement_id INT REFERENCES employee(employement_id) NOT NULL ON UPDATE CASCADE ON DELETE CASCADE,
+    skill_set_id INT REFERENCES skill_set(skill_set_id) NOT NULL ON UPDATE CASCADE ON DELETE CASCADE,
     PRIMARY KEY (employement_id, skill_set_id)
 );
 
 CREATE TABLE employee_planned_activity (
-    employement_id INT REFERENCES employee(employement_id) NOT NULL,
-    planned_activity_id INT REFERENCES planned_activity(planned_activity_id) NOT NULL,
+    employement_id INT REFERENCES employee(employement_id) NOT NULL ON UPDATE CASCADE,
+    planned_activity_id INT REFERENCES planned_activity(planned_activity_id) NOT NULL ON UPDATE CASCADE,
     PRIMARY KEY (employement_id, planned_activity_id)
 );
 
@@ -103,8 +103,8 @@ CREATE TABLE phone (
 );
 
 CREATE TABLE person_phone (
-    person_id INT REFERENCES person (person_id) NOT NULL,
-    phone_id INT REFERENCES phone (phone_id) NOT NULL,
+    person_id INT REFERENCES person (person_id) NOT NULL ON UPDATE CASCADE,
+    phone_id INT REFERENCES phone (phone_id) NOT NULL ON UPDATE CASCADE,
     PRIMARY KEY (person_id, phone_id)
 );
 

@@ -4,7 +4,8 @@ VALUES
     ('IV1352', 'Data Cloud Storage', 20, 300, 7.5, '1'),
     ('IV1353', 'Data Storage Design', 20, 300, 7.5, '1'),
     ('IV1354', 'Data Modeling', 20, 300, 7.5, '1'),
-    ('IV1355', 'Data Handling', 20, 300, 7.5, '1');
+    ('IV1355', 'Data Handling', 20, 300, 7.5, '2'),
+    ('IV1356', 'Data Analysing', 20, 300, 7.5, '2');
 
 INSERT INTO course_instance (course_layout_id, num_students, study_year)
 SELECT course_layout_id, 300, 2025
