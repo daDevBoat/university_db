@@ -86,6 +86,7 @@ CREATE TABLE salary_history (
     employement_id INT NOT NULL REFERENCES employee(employement_id) ON UPDATE CASCADE,
     year INT NOT NULL,
     period period_enum NOT NULL,
+    salary REAL,
     PRIMARY KEY (employement_id, year, period)
 );
 

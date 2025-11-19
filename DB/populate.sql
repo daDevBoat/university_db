@@ -172,20 +172,50 @@ END
 $$;
 
 
--- 5. Salary history (period_enum type)
+-- 5. Salary history: deterministic, at least two entries per employee, always increasing, 200-600
 DO $$
 DECLARE
     emp_rec RECORD;
+    salary_val REAL;
+    base_salary REAL;
+    years INT[] := ARRAY[2021,2022,2023];
+    periods period_enum[] := ARRAY['1'::period_enum,'2'::period_enum,'3'::period_enum,'4'::period_enum];
+    yr INT;
+    per period_enum;
+    incr REAL;
 BEGIN
     FOR emp_rec IN SELECT employement_id FROM employee LOOP
-        INSERT INTO salary_history (employement_id, year, period)
-        VALUES (emp_rec.employement_id, 2021, '1') ON CONFLICT DO NOTHING;
+        -- Base salary for each employee, deterministic
+        base_salary := 200 + ((emp_rec.employement_id * 37) % 201); -- 200..400
+        salary_val := base_salary;
 
-        INSERT INTO salary_history (employement_id, year, period)
-        VALUES (emp_rec.employement_id, 2022, '3') ON CONFLICT DO NOTHING;
+        -- Loop through years
+        FOREACH yr IN ARRAY years LOOP
+            -- Loop through all 4 periods
+            FOREACH per IN ARRAY periods LOOP
+                -- Increase salary per entry deterministically: 5..20
+                incr := 5 + ((emp_rec.employement_id + yr + (per::text)::int) % 16);
+                salary_val := LEAST(salary_val + incr, 600); -- cap at 600
+
+                -- Only insert at least two entries per employee, optional third for some
+                IF (yr = 2021 AND per = '1'::period_enum) OR
+                   (yr = 2022 AND per = '3'::period_enum) OR
+                   ((emp_rec.employement_id % 5 = 0) AND yr = 2023 AND per = '2'::period_enum) THEN
+
+                    INSERT INTO salary_history (employement_id, year, period, salary)
+                    VALUES (emp_rec.employement_id, yr, per, salary_val)
+                    ON CONFLICT DO NOTHING;
+                END IF;
+
+            END LOOP;
+        END LOOP;
     END LOOP;
 END
 $$;
+
+
+
+
 
 -- 6. Skills (1-3 per employee)
 DO $$
@@ -206,53 +236,91 @@ BEGIN
 END
 $$;
 
--- 7. Courses and layouts (period_enum 1..4)
+-- 7. Create 50 courses, each with 1-3 layouts. Deterministic min/max and HP values
 DO $$
 DECLARE
-    course_names VARCHAR(100)[] := ARRAY[
+    course_names TEXT[] := ARRAY[
         'Data Storage Paradigms','Calculus 1','Concurrent Programming','Algorithms and Data Structures',
         'Operating Systems','Computer Networks','Machine Learning Fundamentals','Numerical Analysis',
         'Compiler Construction','Database Systems','Software Engineering','Embedded Systems',
         'Digital Signal Processing','Control Systems','Network Security','Human-Computer Interaction',
-        'Cloud Infrastructure','Parallel Computing','Formal Methods','Cryptography'
+        'Cloud Infrastructure','Parallel Computing','Formal Methods','Cryptography',
+        'Computer Graphics','Distributed Systems','Information Retrieval','AI Planning',
+        'Programming Languages','Linear Algebra','Probability and Statistics','Optimization',
+        'Real-Time Systems','Computer Vision','Natural Language Processing','Microelectronics',
+        'Analog Circuits','Robotics','High Performance Computing','Quantum Computing Basics',
+        'Discrete Mathematics','Data Mining','Secure Programming','Mobile Application Development',
+        'Web Technologies','Big Data Systems','Ethics in Technology','Project Management for IT',
+        'Advanced Algorithms','Computational Geometry','Signal Processing for Communications',
+        'Software Testing','DevOps Practices','User Experience Design','IoT Systems'
     ];
+
+    base_course_count INT := 50;
     idx INT;
     layouts INT;
-    code VARCHAR(10);
-    cname VARCHAR(100);
+    code TEXT;
+    cname TEXT;
+    min_vals INT[] := ARRAY[0,10,20,30,40,50];
+    max_vals INT[] := ARRAY[150,200,250,300,400,500,600];
     lay_min INT;
     lay_max INT;
+    hp_vals REAL[] := ARRAY[7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 6, 9, 15, 4.5]; -- mostly 7.5
     hp_val REAL;
-    study_periods period_enum[] := ARRAY['1','2','3','4'];
-    layout_id INT;
+    study_periods period_enum[] := ARRAY['1'::period_enum,'2'::period_enum,'3'::period_enum,'4'::period_enum];
+    v_layout_id INT;
 BEGIN
-    FOR idx IN 1..50 LOOP
+    FOR idx IN 1..base_course_count LOOP
         cname := course_names[1 + ((idx*3) % array_length(course_names,1))];
-        layouts := 1 + ((idx * 7) % 3);
+        layouts := 1 + ((idx * 7) % 3); -- 1..3 layouts
+
         FOR i IN 1..layouts LOOP
-            code := chr(65 + ((idx + i) % 26)) || chr(65 + ((idx*5 + i) % 26)) || lpad(((1000 + ((idx*31 + i*13) % 9000))::text),4,'0');
-            lay_min := 5 + ((idx + i) % 10);
-            lay_max := lay_min + 10 + ((idx + i*2) % 10);
-            hp_val := 3.0 + ((idx + i) % 8);
+            code := chr(65 + ((idx + i) % 26))
+                    || chr(65 + ((idx*5 + i) % 26))
+                    || lpad(((1000 + ((idx*31 + i*13) % 9000))::text),4,'0');
 
-            INSERT INTO course_layout(course_code, course_name, min_students, max_students, hp, study_period)
-            VALUES (code || '-' || i::text, cname || ' (v' || i::text || ')', lay_min, lay_max, hp_val, study_periods[1 + ((idx + i) % 4)])
-            RETURNING course_layout_id INTO layout_id;
+            -- deterministic min/max
+            lay_min := min_vals[1 + ((idx + i) % array_length(min_vals,1))];
+            lay_max := max_vals[1 + ((idx + i*2) % array_length(max_vals,1))];
 
-            -- 1-2 deterministic instances per layout
-            INSERT INTO course_instance(course_layout_id, num_students, study_year)
-            VALUES (layout_id, lay_min + ((idx*3 + i) % (lay_max-lay_min+1)), 2020 + ((idx+i) % 7));
+            -- deterministic HP: mostly 7.5
+            hp_val := hp_vals[1 + ((idx + i) % array_length(hp_vals,1))];
 
-            IF (idx+i) % 2 = 0 THEN
-                INSERT INTO course_instance(course_layout_id, num_students, study_year)
-                VALUES (layout_id, lay_min + ((idx*5 + i) % (lay_max-lay_min+1)), 2020 + ((idx+i*2) % 7));
+            INSERT INTO course_layout (
+                course_code, course_name,
+                min_students, max_students, hp, study_period
+            )
+            VALUES (
+                code,  -- same code for multiple layouts
+                cname,
+                lay_min, lay_max, hp_val,
+                study_periods[1 + ((idx + i) % 4)]
+            )
+            RETURNING course_layout_id INTO v_layout_id;
+
+            -- instance 1
+            INSERT INTO course_instance (course_layout_id, num_students, study_year)
+            VALUES (
+                v_layout_id,
+                lay_min + ((idx*13 + i*7) % GREATEST(1, lay_max - lay_min + 1)),
+                2020 + ((idx + i) % 7)
+            );
+
+            -- optional 2nd instance
+            IF (idx + i) % 2 = 0 THEN
+                INSERT INTO course_instance (course_layout_id, num_students, study_year)
+                VALUES (
+                    v_layout_id,
+                    lay_min + ((idx*17 + i*11) % GREATEST(1, lay_max - lay_min + 1)),
+                    2020 + ((idx + i*3) % 7)
+                );
             END IF;
         END LOOP;
     END LOOP;
 END
 $$;
 
--- 8. Planned activities (1-3 per instance)
+
+-- 8. For each course_instance create 1..3 planned_activity records (use teaching_activity table)
 DO $$
 DECLARE
     inst_rec RECORD;
@@ -262,57 +330,131 @@ DECLARE
     num_pa INT;
     ta_choice INT;
 BEGIN
-    FOR inst_rec IN SELECT instance_id FROM course_instance LOOP
-        num_pa := 1 + (inst_rec.instance_id % 3);
+    IF ta_count IS NULL THEN
+        RAISE EXCEPTION 'No teaching activities found.';
+    END IF;
+
+    FOR inst_rec IN SELECT instance_id FROM course_instance ORDER BY instance_id LOOP
+        num_pa := 1 + (inst_rec.instance_id % 3); -- 1..3 planned activities
         FOR ta_choice IN 1..num_pa LOOP
-            pa_hours := 10 + ((inst_rec.instance_id + ta_choice) % 40);
-            INSERT INTO planned_activity(instance_id, teaching_activity_id, planned_hours)
-            VALUES(inst_rec.instance_id, ta_ids[1 + ((inst_rec.instance_id + ta_choice) % ta_count)], pa_hours);
+            pa_hours := 10 + ((inst_rec.instance_id + ta_choice) % 40); -- planned hours between 10..49
+            INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
+            VALUES (inst_rec.instance_id, ta_ids[1 + ((inst_rec.instance_id + ta_choice) % ta_count)], pa_hours);
         END LOOP;
     END LOOP;
 END
 $$;
 
--- 9. Assign teachers to planned activities (2-4 per period per teacher)
+-- 9. Assign teachers to planned activities (ensuring 2–4 allocations per period per year)
 DO $$
 DECLARE
     teacher_ids INT[] := ARRAY(
-        SELECT employement_id FROM employee
-        JOIN job_title ON employee.job_title_id = job_title.job_title_id
-        WHERE job_title='Teacher'
-        ORDER BY employement_id
+        SELECT e.employement_id
+        FROM employee e
+        JOIN job_title j ON e.job_title_id = j.job_title_id
+        WHERE j.job_title = 'Teacher'
+        ORDER BY e.employement_id
     );
     teacher_count INT := array_length(teacher_ids,1);
     pa_rec RECORD;
     v_study_year INT;
-    v_layout_id INT;
+    v_course_layout_id INT;
     v_study_period period_enum;
     instance_limit INT := 4;
-    current_allocs INT;
+    allocations INT;
     off INT;
+    cand_id INT;
     try_idx INT := 0;
 BEGIN
+    IF teacher_count IS NULL OR teacher_count = 0 THEN
+        RAISE EXCEPTION 'No teachers found - cannot assign planned activities.';
+    END IF;
+
     FOR pa_rec IN SELECT planned_activity_id, instance_id FROM planned_activity ORDER BY planned_activity_id LOOP
+        -- fetch course instance info
+        SELECT study_year, course_layout_id
+        INTO v_study_year, v_course_layout_id
+        FROM course_instance
+        WHERE instance_id = pa_rec.instance_id;
+
+        SELECT study_period
+        INTO v_study_period
+        FROM course_layout
+        WHERE course_layout_id = v_course_layout_id;
+
+        -- Round-robin assignment to teachers, ensuring 2–4 per period
         try_idx := try_idx + 1;
+        FOR off IN 0..(teacher_count - 1) LOOP
+            cand_id := teacher_ids[1 + ((try_idx + off) % teacher_count)];
 
-        SELECT study_year, course_layout_id INTO v_study_year, v_layout_id FROM course_instance WHERE instance_id=pa_rec.instance_id;
-        SELECT study_period INTO v_study_period FROM course_layout WHERE course_layout_id=v_layout_id;
+            SELECT COUNT(DISTINCT p.instance_id) INTO allocations
+            FROM employee_planned_activity epa
+            JOIN planned_activity p ON p.planned_activity_id = epa.planned_activity_id
+            JOIN course_instance ci ON ci.instance_id = p.instance_id
+            JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
+            WHERE epa.employement_id = cand_id
+              AND cl.study_period = v_study_period
+              AND ci.study_year = v_study_year;
 
-        FOR off IN 0..(teacher_count-1) LOOP
-            current_allocs := (SELECT COUNT(DISTINCT ci.instance_id)
-                               FROM employee_planned_activity epa
-                               JOIN planned_activity pa ON pa.planned_activity_id = epa.planned_activity_id
-                               JOIN course_instance ci ON ci.instance_id = pa.instance_id
-                               JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
-                               WHERE epa.employement_id = teacher_ids[1 + ((try_idx+off) % teacher_count)]
-                                 AND ci.study_year = v_study_year
-                                 AND cl.study_period = v_study_period);
-            IF current_allocs < (2 + ((try_idx+off) % 3)) THEN  -- assign 2-4 per period
-                INSERT INTO employee_planned_activity(employement_id, planned_activity_id)
-                VALUES(teacher_ids[1 + ((try_idx+off) % teacher_count)], pa_rec.planned_activity_id)
+            IF allocations < 2 THEN  -- ensure minimum 2 per period
+                INSERT INTO employee_planned_activity (employement_id, planned_activity_id)
+                VALUES (cand_id, pa_rec.planned_activity_id)
                 ON CONFLICT DO NOTHING;
-                EXIT;
+                EXIT; -- assigned
             END IF;
+        END LOOP;
+
+        -- fallback: attempt to assign if less than max 4 (trigger will enforce)
+        BEGIN
+            INSERT INTO employee_planned_activity (employement_id, planned_activity_id)
+            VALUES (teacher_ids[1 + (try_idx % teacher_count)], pa_rec.planned_activity_id)
+            ON CONFLICT DO NOTHING;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Could not assign planned_activity % due to trigger/limit or other error.', pa_rec.planned_activity_id;
+        END;
+    END LOOP;
+END
+$$;
+
+-- 10. Salary history: at least two entries per employee (using enum type for period)
+DO $$
+DECLARE
+    emp_rec RECORD;
+BEGIN
+    FOR emp_rec IN SELECT employement_id FROM employee LOOP
+        INSERT INTO salary_history (employement_id, year, period)
+        VALUES (emp_rec.employement_id, 2021, '1'::period_enum) ON CONFLICT DO NOTHING;
+
+        INSERT INTO salary_history (employement_id, year, period)
+        VALUES (emp_rec.employement_id, 2022, '3'::period_enum) ON CONFLICT DO NOTHING;
+
+        IF (emp_rec.employement_id % 5) = 0 THEN
+            INSERT INTO salary_history (employement_id, year, period)
+            VALUES (emp_rec.employement_id, 2023, '2'::period_enum) ON CONFLICT DO NOTHING;
+        END IF;
+    END LOOP;
+END
+$$;
+
+-- 11. Assign skills to employees (1–3 skills each)
+DO $$
+DECLARE
+    emp_rec RECORD;
+    skill_ids INT[] := ARRAY(SELECT skill_set_id FROM skill_set ORDER BY skill_set_id);
+    s_count INT;
+    k INT;
+BEGIN
+    IF array_length(skill_ids,1) IS NULL THEN
+        RAISE NOTICE 'No skills found; skipping employee_skill_set assignment.';
+        RETURN;
+    END IF;
+
+    FOR emp_rec IN SELECT employement_id FROM employee LOOP
+        s_count := 1 + (emp_rec.employement_id % 3); -- 1..3 skills
+        FOR k IN 0..(s_count-1) LOOP
+            INSERT INTO employee_skill_set (employement_id, skill_set_id)
+            VALUES (emp_rec.employement_id, skill_ids[1 + ((emp_rec.employement_id + k) % array_length(skill_ids,1))])
+            ON CONFLICT DO NOTHING;
         END LOOP;
     END LOOP;
 END
