@@ -1,4 +1,4 @@
--- 0. Ensure teaching_activity and job_title rows are present
+-- 0. Teaching activities and job titles
 INSERT INTO teaching_activity (activity_name, factor)
 VALUES 
     ('Lecture', 3.6),
@@ -55,45 +55,43 @@ INSERT INTO skill_set (skill) VALUES
 ('Testing & QA')
 ON CONFLICT (skill) DO NOTHING;
 
--- 3. Create persons and phones (ASCII-only names)
+-- 3. Persons (ASCII-only names), phones, person_phone
 DO $$
 DECLARE
-    first_names TEXT[] := ARRAY[
+    first_names VARCHAR(100)[] := ARRAY[
         'Anna','Erik','Maria','Lars','Karin','Per','Elin','Johan','Sofia','Anders',
         'Eva','Fredrik','Lisa','Magnus','Irene','Oskar','Helena','Nils','Asta','Pontus',
         'Mikael','Ingrid','Simon','Therese','Gunnar','Camilla','Martin','Julia','Henrik','Sara',
         'Viktor','Rebecka','Jonas','Stina','Carl','Matilda','Fred','Emilia','Linda','Kristian',
         'Malin','Patrik','Linnea','Tobias','Amanda','Daniel','Josefin','Bertil','Elisabeth','Sebastian'
     ];
-    last_names TEXT[] := ARRAY[
+    last_names VARCHAR(100)[] := ARRAY[
         'Svensson','Johansson','Karlsson','Nilsson','Eriksson','Larsson','Olsson','Persson','Berg','Gustafsson',
         'Pettersson','Jonsson','Soderberg','Lindberg','Lundgren','Bergstrom','Hansson','Axelsson','Lindqvist','Bergman',
         'Lund','Berglund','Akesson','Holm','Bengtsson','Hedlund','Forsberg','Sandberg','Blom','Engstrom'
     ];
-    streets TEXT[] := ARRAY[
+    streets VARCHAR(100)[] := ARRAY[
         'Storgatan 1','Drottninggatan 12','Kungsgatan 3','Sodra Vagen 45','Vastra Hamngatan 2',
         'Nygatan 7','Ostra Langgatan 9','Kvarnvagen 4','Parkgatan 16','Skomakaregatan 5'
     ];
-    cities TEXT[] := ARRAY['Stockholm','Goteborg','Malmo','Uppsala','Lund','Linkoping','Vasteras','Orebro','Helsingborg','Norrkoping'];
+    cities VARCHAR(100)[] := ARRAY['Stockholm','Goteborg','Malmo','Uppsala','Lund','Linkoping','Vasteras','Orebro','Helsingborg','Norrkoping'];
     zip_base INT := 10000;
     v_idx INT;
     v_person_cnt INT := 120;
-    v_dob DATE;
-    v_personal_number TEXT;
-    v_first TEXT;
-    v_last TEXT;
-    v_street TEXT;
-    v_city TEXT;
-    v_zip TEXT;
-    v_phone TEXT;
+    v_personal_number CHAR(12);
+    v_first VARCHAR(100);
+    v_last VARCHAR(100);
+    v_street VARCHAR(100);
+    v_city VARCHAR(100);
+    v_zip CHAR(5);
+    v_phone CHAR(15);
     v_phone_id INT;
     cur_person RECORD;
 BEGIN
     FOR v_idx IN 1..v_person_cnt LOOP
         v_first := first_names[1 + ((v_idx * 3) % array_length(first_names,1))];
         v_last := last_names[1 + ((v_idx * 5) % array_length(last_names,1))];
-        v_dob := DATE '1965-01-01' + ((v_idx * 97) % (365*30));
-        v_personal_number := to_char(v_dob,'YYYYMMDD') || lpad((v_idx % 10000)::text,4,'0');
+        v_personal_number := lpad((19650101 + v_idx)::text,12,'0');
         v_street := streets[1 + ((v_idx*7) % array_length(streets,1))];
         v_city := cities[1 + ((v_idx*11) % array_length(cities,1))];
         v_zip := lpad((zip_base + (v_idx % 9000))::text,5,'0');
@@ -103,7 +101,6 @@ BEGIN
         ON CONFLICT (personal_number) DO NOTHING;
     END LOOP;
 
-    -- Create phones and link to person
     FOR cur_person IN SELECT person_id FROM person ORDER BY person_id LIMIT v_person_cnt LOOP
         v_phone := '+46' || lpad((700000000 + cur_person.person_id)::text,9,'0');
         INSERT INTO phone (phone_number) VALUES (v_phone) ON CONFLICT (phone_number) DO NOTHING;
@@ -117,83 +114,80 @@ BEGIN
 END
 $$;
 
-
--- 4. Employees (100, 85 teachers)
+-- 4. Employees (fixed assignment of employement_id to variable)
 DO $$
 DECLARE
-    persons INT[] := ARRAY(SELECT person_id FROM person ORDER BY person_id LIMIT 100);
+    total_emps INT := 100;
+    persons_arr INT[] := ARRAY(SELECT person_id FROM person ORDER BY person_id LIMIT total_emps);
     dept_ids INT[] := ARRAY(SELECT department_id FROM department ORDER BY department_id);
     dept_count INT := array_length(dept_ids,1);
-    jt_teacher INT := (SELECT job_title_id FROM job_title WHERE job_title='Teacher');
-    jt_manager INT := (SELECT job_title_id FROM job_title WHERE job_title='Manager');
-    jt_cleaner INT := (SELECT job_title_id FROM job_title WHERE job_title='Cleaner');
-    jt_secretary INT := (SELECT job_title_id FROM job_title WHERE job_title='Secretary');
-    jt_assistant INT := (SELECT job_title_id FROM job_title WHERE job_title='Assistant');
+    teacher_jid INT := (SELECT job_title_id FROM job_title WHERE job_title='Teacher');
+    manager_jid INT := (SELECT job_title_id FROM job_title WHERE job_title='Manager');
+    cleaner_jid INT := (SELECT job_title_id FROM job_title WHERE job_title='Cleaner');
+    secretary_jid INT := (SELECT job_title_id FROM job_title WHERE job_title='Secretary');
+    assistant_jid INT := (SELECT job_title_id FROM job_title WHERE job_title='Assistant');
     created_emps INT[] := ARRAY[]::INT[];
     manager_list INT[] := ARRAY[]::INT[];
     i INT;
-    new_emp INT;
+    emp_id INT;
 BEGIN
-    FOR i IN 1..100 LOOP
+    FOR i IN 1..total_emps LOOP
         IF i <= 85 THEN
             INSERT INTO employee(person_id, department_id, job_title_id, supervisor_id)
-            VALUES (persons[i], dept_ids[(i % dept_count)+1], jt_teacher, NULL)
-            RETURNING employement_id INTO new_emp;
-            created_emps := array_append(created_emps, new_emp);
+            VALUES (persons_arr[i], dept_ids[1 + (i % dept_count)], teacher_jid, NULL)
+            RETURNING employement_id INTO emp_id;
+            created_emps := array_append(created_emps, emp_id);
         ELSIF i <= 95 THEN
             INSERT INTO employee(person_id, department_id, job_title_id, supervisor_id)
-            VALUES (persons[i], dept_ids[(i % dept_count)+1], jt_manager, NULL)
-            RETURNING employement_id INTO new_emp;
-            created_emps := array_append(created_emps, new_emp);
-            manager_list := array_append(manager_list, new_emp);
+            VALUES (persons_arr[i], dept_ids[1 + (i % dept_count)], manager_jid, NULL)
+            RETURNING employement_id INTO emp_id;
+            created_emps := array_append(created_emps, emp_id);
+            manager_list := array_append(manager_list, emp_id);
         ELSE
             INSERT INTO employee(person_id, department_id, job_title_id, supervisor_id)
-            VALUES (persons[i], dept_ids[(i % dept_count)+1],
-                CASE (i%3)
-                    WHEN 0 THEN jt_cleaner
-                    WHEN 1 THEN jt_secretary
-                    ELSE jt_assistant
-                END,
+            VALUES (persons_arr[i], dept_ids[1 + (i % dept_count)],
+                CASE WHEN i % 3=0 THEN cleaner_jid
+                     WHEN i % 3=1 THEN secretary_jid
+                     ELSE assistant_jid END,
                 NULL)
-            RETURNING employement_id INTO new_emp;
-            created_emps := array_append(created_emps, new_emp);
+            RETURNING employement_id INTO emp_id;
+            created_emps := array_append(created_emps, emp_id);
         END IF;
     END LOOP;
 
-    -- Managers hierarchy
+    -- Assign supervisors
     IF array_length(manager_list,1) >= 2 THEN
         FOR i IN 3..array_length(manager_list,1) LOOP
             UPDATE employee SET supervisor_id = manager_list[1 + ((i+1) % 2)] WHERE employement_id = manager_list[i];
         END LOOP;
     END IF;
 
-    -- Other employees get managers round-robin
+    -- Non-managers assigned to managers round-robin
     FOR i IN 1..array_length(created_emps,1) LOOP
-        IF NOT (created_emps[i] = ANY(manager_list)) THEN
+        IF NOT created_emps[i] = ANY(manager_list) THEN
             UPDATE employee SET supervisor_id = manager_list[1 + ((i-1) % array_length(manager_list,1))] WHERE employement_id = created_emps[i];
         END IF;
     END LOOP;
 END
 $$;
 
--- 5. Salary history
+
+-- 5. Salary history (period_enum type)
 DO $$
-DECLARE emp_rec RECORD;
+DECLARE
+    emp_rec RECORD;
 BEGIN
     FOR emp_rec IN SELECT employement_id FROM employee LOOP
-        INSERT INTO salary_history(employement_id, year, period)
-        VALUES(emp_rec.employement_id,2021,'1'::period_enum) ON CONFLICT DO NOTHING;
-        INSERT INTO salary_history(employement_id, year, period)
-        VALUES(emp_rec.employement_id,2022,'3'::period_enum) ON CONFLICT DO NOTHING;
-        IF (emp_rec.employement_id % 5)=0 THEN
-            INSERT INTO salary_history(employement_id, year, period)
-            VALUES(emp_rec.employement_id,2023,'2'::period_enum) ON CONFLICT DO NOTHING;
-        END IF;
+        INSERT INTO salary_history (employement_id, year, period)
+        VALUES (emp_rec.employement_id, 2021, '1') ON CONFLICT DO NOTHING;
+
+        INSERT INTO salary_history (employement_id, year, period)
+        VALUES (emp_rec.employement_id, 2022, '3') ON CONFLICT DO NOTHING;
     END LOOP;
 END
 $$;
 
--- 6. Employee skills
+-- 6. Skills (1-3 per employee)
 DO $$
 DECLARE
     emp_rec RECORD;
@@ -204,69 +198,61 @@ BEGIN
     FOR emp_rec IN SELECT employement_id FROM employee LOOP
         s_count := 1 + (emp_rec.employement_id % 3);
         FOR k IN 0..(s_count-1) LOOP
-            INSERT INTO employee_skill_set(employement_id, skill_set_id)
-            VALUES(emp_rec.employement_id, skill_ids[1 + ((emp_rec.employement_id + k) % array_length(skill_ids,1))])
+            INSERT INTO employee_skill_set (employement_id, skill_set_id)
+            VALUES (emp_rec.employement_id, skill_ids[1 + ((emp_rec.employement_id + k) % array_length(skill_ids,1))])
             ON CONFLICT DO NOTHING;
         END LOOP;
     END LOOP;
 END
 $$;
 
--- 7. Courses (50 courses, 1-3 layouts each, deterministic)
+-- 7. Courses and layouts (period_enum 1..4)
 DO $$
 DECLARE
-    course_names TEXT[] := ARRAY[
+    course_names VARCHAR(100)[] := ARRAY[
         'Data Storage Paradigms','Calculus 1','Concurrent Programming','Algorithms and Data Structures',
         'Operating Systems','Computer Networks','Machine Learning Fundamentals','Numerical Analysis',
         'Compiler Construction','Database Systems','Software Engineering','Embedded Systems',
         'Digital Signal Processing','Control Systems','Network Security','Human-Computer Interaction',
-        'Cloud Infrastructure','Parallel Computing','Formal Methods','Cryptography',
-        'Computer Graphics','Distributed Systems','Information Retrieval','AI Planning',
-        'Programming Languages','Linear Algebra','Probability and Statistics','Optimization',
-        'Real-Time Systems','Computer Vision','Natural Language Processing','Microelectronics',
-        'Analog Circuits','Robotics','High Performance Computing','Quantum Computing Basics',
-        'Discrete Mathematics','Data Mining','Secure Programming','Mobile Application Development',
-        'Web Technologies','Big Data Systems','Ethics in Technology','Project Management for IT',
-        'Advanced Algorithms','Computational Geometry','Signal Processing for Communications',
-        'Software Testing','DevOps Practices','User Experience Design','IoT Systems'
+        'Cloud Infrastructure','Parallel Computing','Formal Methods','Cryptography'
     ];
-    base_course_count INT := 50;
     idx INT;
     layouts INT;
-    code TEXT;
-    cname TEXT;
+    code VARCHAR(10);
+    cname VARCHAR(100);
     lay_min INT;
     lay_max INT;
     hp_val REAL;
-    study_periods period_enum[] := ARRAY['1'::period_enum,'2'::period_enum,'3'::period_enum,'4'::period_enum];
-    v_layout_id INT;
+    study_periods period_enum[] := ARRAY['1','2','3','4'];
+    layout_id INT;
 BEGIN
-    FOR idx IN 1..base_course_count LOOP
+    FOR idx IN 1..50 LOOP
         cname := course_names[1 + ((idx*3) % array_length(course_names,1))];
         layouts := 1 + ((idx * 7) % 3);
         FOR i IN 1..layouts LOOP
             code := chr(65 + ((idx + i) % 26)) || chr(65 + ((idx*5 + i) % 26)) || lpad(((1000 + ((idx*31 + i*13) % 9000))::text),4,'0');
             lay_min := 5 + ((idx + i) % 10);
-            lay_max := lay_min + 10 + ((idx + i*2) % 100);
+            lay_max := lay_min + 10 + ((idx + i*2) % 10);
             hp_val := 3.0 + ((idx + i) % 8);
 
             INSERT INTO course_layout(course_code, course_name, min_students, max_students, hp, study_period)
-            VALUES(code || '-' || i, cname || ' (v' || i || ')', lay_min, lay_max, hp_val, study_periods[1 + ((idx + i) % 4)])
-            RETURNING course_layout_id INTO v_layout_id;
+            VALUES (code || '-' || i::text, cname || ' (v' || i::text || ')', lay_min, lay_max, hp_val, study_periods[1 + ((idx + i) % 4)])
+            RETURNING course_layout_id INTO layout_id;
 
+            -- 1-2 deterministic instances per layout
             INSERT INTO course_instance(course_layout_id, num_students, study_year)
-            VALUES(v_layout_id, lay_min + ((idx*2 + i) % (lay_max - lay_min + 1)), 2020 + ((idx + i*2) % 7));
+            VALUES (layout_id, lay_min + ((idx*3 + i) % (lay_max-lay_min+1)), 2020 + ((idx+i) % 7));
 
-            IF (idx + i) % 2 = 0 THEN
+            IF (idx+i) % 2 = 0 THEN
                 INSERT INTO course_instance(course_layout_id, num_students, study_year)
-                VALUES(v_layout_id, lay_min + ((idx*17 + i*11) % (lay_max - lay_min + 1)), 2020 + ((idx + i*3) % 7));
+                VALUES (layout_id, lay_min + ((idx*5 + i) % (lay_max-lay_min+1)), 2020 + ((idx+i*2) % 7));
             END IF;
         END LOOP;
     END LOOP;
 END
 $$;
 
--- 8. Planned activities for course instances
+-- 8. Planned activities (1-3 per instance)
 DO $$
 DECLARE
     inst_rec RECORD;
@@ -287,48 +273,43 @@ BEGIN
 END
 $$;
 
--- 9. Assign teachers to planned activities
+-- 9. Assign teachers to planned activities (2-4 per period per teacher)
 DO $$
 DECLARE
     teacher_ids INT[] := ARRAY(
-        SELECT e.employement_id
-        FROM employee e
-        JOIN job_title j ON e.job_title_id = j.job_title_id
-        WHERE j.job_title = 'Teacher'
-        ORDER BY e.employement_id
+        SELECT employement_id FROM employee
+        JOIN job_title ON employee.job_title_id = job_title.job_title_id
+        WHERE job_title='Teacher'
+        ORDER BY employement_id
     );
     teacher_count INT := array_length(teacher_ids,1);
     pa_rec RECORD;
     v_study_year INT;
-    v_course_layout_id INT;
+    v_layout_id INT;
     v_study_period period_enum;
-    off INT;
-    cand_id INT;
+    instance_limit INT := 4;
     current_allocs INT;
-    instance_limit INT;
+    off INT;
     try_idx INT := 0;
 BEGIN
-    SELECT limit_value INTO instance_limit FROM rule WHERE name='employee_instance_limit' LIMIT 1;
-    IF instance_limit IS NULL THEN instance_limit := 4; END IF;
-
     FOR pa_rec IN SELECT planned_activity_id, instance_id FROM planned_activity ORDER BY planned_activity_id LOOP
         try_idx := try_idx + 1;
 
-        SELECT study_year, course_layout_id INTO v_study_year, v_course_layout_id FROM course_instance WHERE instance_id = pa_rec.instance_id;
-        SELECT study_period INTO v_study_period FROM course_layout WHERE course_layout_id = v_course_layout_id;
+        SELECT study_year, course_layout_id INTO v_study_year, v_layout_id FROM course_instance WHERE instance_id=pa_rec.instance_id;
+        SELECT study_period INTO v_study_period FROM course_layout WHERE course_layout_id=v_layout_id;
 
         FOR off IN 0..(teacher_count-1) LOOP
-            cand_id := teacher_ids[1 + ((try_idx + off) % teacher_count)];
-            SELECT COUNT(DISTINCT p.instance_id) INTO current_allocs
-            FROM employee_planned_activity epa
-            JOIN planned_activity p ON p.planned_activity_id=epa.planned_activity_id
-            JOIN course_instance ci ON ci.instance_id=p.instance_id
-            JOIN course_layout cl ON cl.course_layout_id=ci.course_layout_id
-            WHERE epa.employement_id=cand_id AND cl.study_period=v_study_period AND ci.study_year=v_study_year;
-
-            IF current_allocs < instance_limit THEN
+            current_allocs := (SELECT COUNT(DISTINCT ci.instance_id)
+                               FROM employee_planned_activity epa
+                               JOIN planned_activity pa ON pa.planned_activity_id = epa.planned_activity_id
+                               JOIN course_instance ci ON ci.instance_id = pa.instance_id
+                               JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
+                               WHERE epa.employement_id = teacher_ids[1 + ((try_idx+off) % teacher_count)]
+                                 AND ci.study_year = v_study_year
+                                 AND cl.study_period = v_study_period);
+            IF current_allocs < (2 + ((try_idx+off) % 3)) THEN  -- assign 2-4 per period
                 INSERT INTO employee_planned_activity(employement_id, planned_activity_id)
-                VALUES(cand_id, pa_rec.planned_activity_id)
+                VALUES(teacher_ids[1 + ((try_idx+off) % teacher_count)], pa_rec.planned_activity_id)
                 ON CONFLICT DO NOTHING;
                 EXIT;
             END IF;
