@@ -1,5 +1,10 @@
 DROP DATABASE IF EXISTS university_db;
-CREATE DATABASE university_db;  
+
+CREATE DATABASE university_db
+  WITH ENCODING 'UTF8'
+       LC_COLLATE='sv_SE.UTF-8'
+       LC_CTYPE='sv_SE.UTF-8'
+       TEMPLATE=template0;
 
 \c university_db
 
