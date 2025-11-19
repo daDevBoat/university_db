@@ -7,11 +7,15 @@ DROP TYPE IF EXISTS period_enum;
 CREATE TYPE period_enum AS ENUM('1', '2', '3', '4');
 
 CREATE TABLE rule (
-    rule_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name VARCHAR(50) UNIQUE,
-    limit_value INT,
-    target_name VARCHAR(50),
-    CHECK (limit_value IS NOT NULL OR target_name IS NOT NULL)
+    name VARCHAR(50) UNIQUE PRIMARY KEY,
+    limit_value INT
+);
+
+CREATE TABLE calculation (
+    name VARCHAR(50) UNIQUE PRIMARY KEY,
+    hp_factor REAL,
+    students_factor REAL,
+    constant REAL
 );
 
 CREATE TABLE course_layout (
@@ -26,7 +30,7 @@ CREATE TABLE course_layout (
 
 CREATE TABLE course_instance (
     instance_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    course_layout_id INT REFERENCES course_layout(course_layout_id) NOT NULL ON UPDATE CASCADE,
+    course_layout_id INT NOT NULL REFERENCES course_layout(course_layout_id) ON UPDATE CASCADE,
     num_students INT NOT NULL,
     study_year INT NOT NULL
 );
@@ -39,8 +43,8 @@ CREATE TABLE teaching_activity (
 
 CREATE TABLE planned_activity (
     planned_activity_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    instance_id INT REFERENCES course_instance(instance_id) NOT NULL ON UPDATE CASCADE,
-    teaching_activity_id INT REFERENCES teaching_activity(teaching_activity_id) NOT NULL ON UPDATE CASCADE,
+    instance_id INT NOT NULL REFERENCES course_instance(instance_id) ON UPDATE CASCADE,
+    teaching_activity_id INT NOT NULL REFERENCES teaching_activity(teaching_activity_id) ON UPDATE CASCADE,
     planned_hours REAL NOT NULL
 );
 
@@ -71,29 +75,29 @@ CREATE TABLE skill_set (
 
 CREATE TABLE employee (
     employement_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    person_id INT REFERENCES person(person_id) NOT NULL ON UPDATE CASCADE,
-    department_id INT REFERENCES department(department_id) NOT NULL ON UPDATE CASCADE,
-    job_title_id INT REFERENCES job_title(job_title_id) NOT NULL ON UPDATE CASCADE,
+    person_id INT NOT NULL REFERENCES person(person_id) ON UPDATE CASCADE,
+    department_id INT NOT NULL REFERENCES department(department_id) ON UPDATE CASCADE,
+    job_title_id INT NOT NULL REFERENCES job_title(job_title_id) ON UPDATE CASCADE,
     supervisor_id INT REFERENCES employee(employement_id) ON UPDATE CASCADE,
     is_active BIT(1) DEFAULT B'1' NOT NULL
 );
 
 CREATE TABLE salary_history (
-    employement_id INT REFERENCES employee(employement_id) NOT NULL ON UPDATE CASCADE,
+    employement_id INT NOT NULL REFERENCES employee(employement_id) ON UPDATE CASCADE,
     year INT NOT NULL,
     period period_enum NOT NULL,
     PRIMARY KEY (employement_id, year, period)
 );
 
 CREATE TABLE employee_skill_set (
-    employement_id INT REFERENCES employee(employement_id) NOT NULL ON UPDATE CASCADE ON DELETE CASCADE,
-    skill_set_id INT REFERENCES skill_set(skill_set_id) NOT NULL ON UPDATE CASCADE ON DELETE CASCADE,
+    employement_id INT NOT NULL REFERENCES employee(employement_id) ON UPDATE CASCADE ON DELETE CASCADE,
+    skill_set_id INT NOT NULL REFERENCES skill_set(skill_set_id) ON UPDATE CASCADE ON DELETE CASCADE,
     PRIMARY KEY (employement_id, skill_set_id)
 );
 
 CREATE TABLE employee_planned_activity (
-    employement_id INT REFERENCES employee(employement_id) NOT NULL ON UPDATE CASCADE,
-    planned_activity_id INT REFERENCES planned_activity(planned_activity_id) NOT NULL ON UPDATE CASCADE,
+    employement_id INT NOT NULL REFERENCES employee(employement_id) ON UPDATE CASCADE,
+    planned_activity_id INT NOT NULL REFERENCES planned_activity(planned_activity_id) ON UPDATE CASCADE,
     PRIMARY KEY (employement_id, planned_activity_id)
 );
 
@@ -103,28 +107,105 @@ CREATE TABLE phone (
 );
 
 CREATE TABLE person_phone (
-    person_id INT REFERENCES person (person_id) NOT NULL ON UPDATE CASCADE,
-    phone_id INT REFERENCES phone (phone_id) NOT NULL ON UPDATE CASCADE,
+    person_id INT NOT NULL REFERENCES person (person_id) ON UPDATE CASCADE,
+    phone_id INT  NOT NULL REFERENCES phone (phone_id) ON UPDATE CASCADE,
     PRIMARY KEY (person_id, phone_id)
 );
 
 /* TRIGGERS and FUNCTIONS */
 
--- First add the neccesay trigger rules
-INSERT INTO rule (name, limit_value, target_name)
+-- First add the neccesay trigger rules and calculations
+INSERT INTO rule (name, limit_value)
+VALUES ('employee_instance_limit', 4);
+
+INSERT INTO calculation (name, hp_factor, students_factor, constant)
 VALUES 
-    ('exam_attr_name', NULL, 'exam'),
-    ('admin_attr_name', NULL, 'admin'),
-    ('employee_instance_limit', 4, NULL);
-
--- Insert exam and admin into teaching_activity (so they are always there) 
-INSERT INTO teaching_activity (activity_name, factor)
-VALUES 
-    ('exam', 1),
-    ('admin', 1);
+    ('exam_calc', 0, 0.725, 32),
+    ('admin_calc', 2, 0.2, 28);
 
 
-/* Assumes that the start of the academic year is 1st of Jaunary and each period is 3 months */
+CREATE OR REPLACE FUNCTION min_max_students_check() RETURNS trigger AS $$  
+DECLARE
+    min_s INT;
+    max_s INT;
+BEGIN
+    SELECT min_students, max_students INTO min_s, max_s
+    FROM course_layout
+    WHERE course_layout_id = NEW.course_layout_id;
+
+    IF NEW.num_students > max_s THEN
+        RAISE EXCEPTION '% number of students is greater than layout max of % students', NEW.num_students, max_s;
+    ELSIF NEW.num_students < min_s THEN
+        RAISE EXCEPTION '% number of students is less than layout min of % students', NEW.num_students, min_s;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION planned_activity_limit_check() RETURNS trigger AS $$
+DECLARE
+    in_id INT;
+    lay_id INT;
+    num_of_instances INT;
+    year INT;
+    period period_enum;
+    instance_limit INT;
+    job_t VARCHAR(100);
+BEGIN
+    SELECT instance_id INTO in_id
+    FROM planned_activity
+    WHERE planned_activity_id = NEW.planned_activity_id;
+
+    SELECT study_year, course_layout_id INTO year, lay_id
+    FROM course_instance
+    WHERE instance_id = in_id;
+
+    SELECT study_period INTO period
+    FROM course_layout
+    WHERE course_layout_id = lay_id;
+
+    SELECT limit_value INTO instance_limit
+    FROM rule
+    WHERE name = 'employee_instance_limit';
+
+    -- RAISE NOTICE 'year: % period: %', year, period;
+
+    SELECT COUNT(DISTINCT p.instance_id) INTO num_of_instances
+    FROM(
+        SELECT employement_id, planned_activity_id
+        FROM employee_planned_activity
+        WHERE employement_id = NEW.employement_id) AS f
+    JOIN planned_activity p ON f.planned_activity_id = p.planned_activity_id
+    JOIN course_instance i ON i.instance_id = p.instance_id
+    JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+    WHERE l.study_period = period AND i.study_year = year;
+    
+    IF num_of_instances >= instance_limit THEN
+        RAISE EXCEPTION 'An employee can only be allocated to max % courses in the same period', instance_limit;
+    END IF;
+    
+    RAISE NOTICE '# of instances for employee: %', num_of_instances + 1;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER min_max_students_triger
+BEFORE INSERT ON course_instance
+FOR EACH ROW
+EXECUTE FUNCTION min_max_students_check();
+
+CREATE TRIGGER planned_activity_limit_trigger
+BEFORE INSERT ON employee_planned_activity
+FOR EACH ROW
+EXECUTE FUNCTION planned_activity_limit_check();
+
+
+/*
+CODE GRAVEYARD NOT USED
+
 CREATE OR REPLACE FUNCTION get_current_period()
 RETURNS INT AS $$
 DECLARE
@@ -143,25 +224,6 @@ BEGIN
     ELSE
         RETURN 4;
     END IF;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION min_max_students_check() RETURNS trigger AS $$  
-DECLARE
-    min_s INT;
-    max_s INT;
-BEGIN
-    SELECT min_students, max_students INTO min_s, max_s
-    FROM course_layout
-    WHERE course_layout_id = NEW.course_layout_id;
-
-    IF NEW.num_students > max_s THEN
-        RAISE EXCEPTION '% number of students is greater than layout max of % students', NEW.num_students, max_s;
-    ELSIF NEW.num_students < min_s THEN
-        RAISE EXCEPTION '% number of students is less than layout min of % students', NEW.num_students, min_s;
-    END IF;
-
-    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -201,102 +263,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION planned_activity_limit_check() RETURNS trigger AS $$
-DECLARE
-    in_id INT;
-    lay_id INT;
-    num_of_instances INT;
-    year INT;
-    period period_enum;
-    instance_limit INT;
-    job_t VARCHAR(100);
-BEGIN
-    SELECT instance_id INTO in_id
-    FROM planned_activity
-    WHERE planned_activity_id = NEW.planned_activity_id;
-
-    SELECT study_year, course_layout_id INTO year, lay_id
-    FROM course_instance
-    WHERE instance_id = in_id;
-
-    SELECT study_period INTO period
-    FROM course_layout
-    WHERE course_layout_id = lay_id;
-
-    SELECT limit_value INTO instance_limit
-    FROM rule
-    WHERE name = 'employee_instance_limit';
-
-    -- RAISE NOTICE 'year: % period: %', year, period;
-
-    SELECT COUNT(DISTINCT p.instance_id) INTO num_of_instances
-    FROM(
-        SELECT employement_id, planned_activity_id
-        FROM employee_planned_activity
-        WHERE employement_id = NEW.employement_id) AS f
-    JOIN planned_activity p ON f.planned_activity_id = p.planned_activity_id;
-
-
-    SELECT COUNT(DISTINCT p.instance_id) INTO num_of_instances
-    FROM(
-        SELECT employement_id, planned_activity_id
-        FROM employee_planned_activity
-        WHERE employement_id = NEW.employement_id) AS f
-    JOIN planned_activity p ON f.planned_activity_id = p.planned_activity_id
-    JOIN course_instance i ON i.instance_id = p.instance_id
-    JOIN course_layout l ON l.course_layout_id = i.course_layout_id
-    WHERE l.study_period = period AND i.study_year = year;
-    
-    IF num_of_instances >= instance_limit THEN
-        RAISE EXCEPTION 'An employee can only be allocated to max % courses in the same period', instance_limit;
-    END IF;
-    
-    RAISE NOTICE '# of instances for employee: %', num_of_instances + 1;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER min_max_students_triger
-BEFORE INSERT ON course_instance
-FOR EACH ROW
-EXECUTE FUNCTION min_max_students_check();
-
-CREATE TRIGGER planned_activity_limit_trigger
-BEFORE INSERT ON employee_planned_activity
-FOR EACH ROW
-EXECUTE FUNCTION planned_activity_limit_check();
 
 CREATE TRIGGER course_instance_calc_trigger
 AFTER INSERT ON course_instance
 FOR EACH ROW
 EXECUTE FUNCTION calculate_exam_admin_hours();
-
-
-/*
-QUERIES:
-
-INSERT INTO teaching_activity (activity_name, factor)
-VALUES ('exam', 1);
-
-INSERT INTO teaching_activity (activity_name, factor)
-VALUES ('admin', 1);
-
-INSERT INTO course_layout (course_code, course_name, min_students, max_students, hp, study_period)
-VALUES ('IV1351', 'Data Storage Paradigms', 20, 300, 7.5, '1');
-
-INSERT INTO course_instance (course_layout_id, num_students, study_year)
-SELECT course_layout_id, 200, 2025
-FROM course_layout
-WHERE course_code = 'IV1351';
-
-
-SELECT l.course_code, l.course_name, t.activity_name, p.planned_hours
-FROM planned_activity p
-JOIN course_instance i ON i.instance_id = p.instance_id
-JOIN course_layout l ON l.course_layout_id = i.course_layout_id
-JOIN teaching_activity t ON t.teaching_activity_id = p.teaching_activity_id
-WHERE l.course_code = 'IV1351';
-
 
 */
