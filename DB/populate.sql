@@ -1,7 +1,4 @@
--- deterministic populate.sql
--- Run AFTER init.sql and triggers.sql
-
--- 0. Ensure teaching_activity and job_title rows are present (use exactly what you provided).
+-- 0. Ensure teaching_activity and job_title rows are present
 INSERT INTO teaching_activity (activity_name, factor)
 VALUES 
     ('Lecture', 3.6),
@@ -58,13 +55,26 @@ INSERT INTO skill_set (skill) VALUES
 ('Testing & QA')
 ON CONFLICT (skill) DO NOTHING;
 
--- 3. Create Swedish persons and phones
+-- 3. Create persons and phones (ASCII-only names)
 DO $$
 DECLARE
-    first_names TEXT[] := ARRAY['Anna','Erik','Maria','Lars','Karin','Per','Elin','Johan','Sofia','Anders','Eva','Fredrik','Lisa','Magnus','Irene','Oskar','Helena','Nils','Åsa','Pontus','Mikael','Ingrid','Simon','Therese','Gunnar','Camilla','Martin','Julia','Henrik','Sara','Viktor','Rebecka','Jonas','Stina','Carl','Matilda','Fred','Emilia','Linda','Kristian','Malin','Patrik','Linnea','Tobias','Amanda','Daniel','Josefin','Bertil','Elisabeth','Sebastian'];
-    last_names TEXT[] := ARRAY['Svensson','Johansson','Karlsson','Nilsson','Eriksson','Larsson','Olsson','Persson','Berg','Gustafsson','Pettersson','Jonsson','Söderberg','Lindberg','Lundgren','Bergström','Hansson','Axelsson','Lindqvist','Bergman','Lund','Berglund','Åkesson','Holm','Bengtsson','Hedlund','Forsberg','Sandberg','Blom','Engström'];
-    streets TEXT[] := ARRAY['Storgatan 1','Drottninggatan 12','Kungsgatan 3','Södra Vägen 45','Västra Hamngatan 2','Nygatan 7','Östra Långgatan 9','Kvarnvägen 4','Parkgatan 16','Skomakaregatan 5'];
-    cities TEXT[] := ARRAY['Stockholm','Göteborg','Malmö','Uppsala','Lund','Linköping','Västerås','Örebro','Helsingborg','Norrköping'];
+    first_names TEXT[] := ARRAY[
+        'Anna','Erik','Maria','Lars','Karin','Per','Elin','Johan','Sofia','Anders',
+        'Eva','Fredrik','Lisa','Magnus','Irene','Oskar','Helena','Nils','Asta','Pontus',
+        'Mikael','Ingrid','Simon','Therese','Gunnar','Camilla','Martin','Julia','Henrik','Sara',
+        'Viktor','Rebecka','Jonas','Stina','Carl','Matilda','Fred','Emilia','Linda','Kristian',
+        'Malin','Patrik','Linnea','Tobias','Amanda','Daniel','Josefin','Bertil','Elisabeth','Sebastian'
+    ];
+    last_names TEXT[] := ARRAY[
+        'Svensson','Johansson','Karlsson','Nilsson','Eriksson','Larsson','Olsson','Persson','Berg','Gustafsson',
+        'Pettersson','Jonsson','Soderberg','Lindberg','Lundgren','Bergstrom','Hansson','Axelsson','Lindqvist','Bergman',
+        'Lund','Berglund','Akesson','Holm','Bengtsson','Hedlund','Forsberg','Sandberg','Blom','Engstrom'
+    ];
+    streets TEXT[] := ARRAY[
+        'Storgatan 1','Drottninggatan 12','Kungsgatan 3','Sodra Vagen 45','Vastra Hamngatan 2',
+        'Nygatan 7','Ostra Langgatan 9','Kvarnvagen 4','Parkgatan 16','Skomakaregatan 5'
+    ];
+    cities TEXT[] := ARRAY['Stockholm','Goteborg','Malmo','Uppsala','Lund','Linkoping','Vasteras','Orebro','Helsingborg','Norrkoping'];
     zip_base INT := 10000;
     v_idx INT;
     v_person_cnt INT := 120;
@@ -75,11 +85,10 @@ DECLARE
     v_street TEXT;
     v_city TEXT;
     v_zip TEXT;
-    ph TEXT;
-    ph_id INT;
-    rec RECORD;
+    v_phone TEXT;
+    v_phone_id INT;
+    cur_person RECORD;
 BEGIN
-    -- persons
     FOR v_idx IN 1..v_person_cnt LOOP
         v_first := first_names[1 + ((v_idx * 3) % array_length(first_names,1))];
         v_last := last_names[1 + ((v_idx * 5) % array_length(last_names,1))];
@@ -94,17 +103,20 @@ BEGIN
         ON CONFLICT (personal_number) DO NOTHING;
     END LOOP;
 
-    -- phones
-    FOR rec IN SELECT person_id FROM person ORDER BY person_id LIMIT v_person_cnt LOOP
-        ph := '+46' || lpad((700000000 + rec.person_id)::text,9,'0');
-        INSERT INTO phone(phone_number) VALUES(ph) ON CONFLICT DO NOTHING;
-        SELECT phone_id INTO ph_id FROM phone WHERE phone_number=ph LIMIT 1;
-        INSERT INTO person_phone(person_id, phone_id)
-        VALUES (rec.person_id, ph_id)
-        ON CONFLICT DO NOTHING;
+    -- Create phones and link to person
+    FOR cur_person IN SELECT person_id FROM person ORDER BY person_id LIMIT v_person_cnt LOOP
+        v_phone := '+46' || lpad((700000000 + cur_person.person_id)::text,9,'0');
+        INSERT INTO phone (phone_number) VALUES (v_phone) ON CONFLICT (phone_number) DO NOTHING;
+        SELECT phone_id INTO v_phone_id FROM phone WHERE phone_number = v_phone LIMIT 1;
+        IF v_phone_id IS NOT NULL THEN
+            INSERT INTO person_phone (person_id, phone_id)
+            VALUES (cur_person.person_id, v_phone_id)
+            ON CONFLICT (person_id, phone_id) DO NOTHING;
+        END IF;
     END LOOP;
 END
 $$;
+
 
 -- 4. Employees (100, 85 teachers)
 DO $$
