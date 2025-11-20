@@ -260,7 +260,7 @@ DECLARE
     layouts INT;
     code TEXT;
     cname TEXT;
-    min_vals INT[] := ARRAY[0,10,20,30,40,50];
+    min_vals INT[] := ARRAY[10,20,30,40,50];
     max_vals INT[] := ARRAY[150,200,250,300,400,500,600];
     lay_min INT;
     lay_max INT;
@@ -272,11 +272,11 @@ BEGIN
     FOR idx IN 1..base_course_count LOOP
         cname := course_names[1 + ((idx*3) % array_length(course_names,1))];
         layouts := 1 + ((idx * 7) % 3); -- 1..3 layouts
+        code := chr(65 + ((idx) % 26))
+                || chr(65 + ((idx*5) % 26))
+                || lpad(((1000 + ((idx*31 + 13) % 9000))::text),4,'0');
 
         FOR i IN 1..layouts LOOP
-            code := chr(65 + ((idx + i) % 26))
-                    || chr(65 + ((idx*5 + i) % 26))
-                    || lpad(((1000 + ((idx*31 + i*13) % 9000))::text),4,'0');
 
             -- deterministic min/max
             lay_min := min_vals[1 + ((idx + i) % array_length(min_vals,1))];
