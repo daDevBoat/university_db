@@ -1,7 +1,6 @@
 /* 
 THIS SCRIPT WAS USED ORIGINALY FOR TESTING.
 IS NOT USED ANYMORE. USE populate.sql!
-*/
 
 
 
@@ -118,4 +117,4 @@ JOIN course_layout l  ON i.course_layout_id = l.course_layout_id
 JOIN teaching_activity t ON t.teaching_activity_id = p.teaching_activity_id
 WHERE l.course_code = 'IV1354' and t.activity_name = 'lecture';
 
-
+*/
