@@ -72,7 +72,7 @@ BEGIN
         RAISE EXCEPTION 'An employee can only be allocated to max % courses in the same period', instance_limit;
     END IF;
     
-    RAISE NOTICE '# of instances for employee: %', num_of_instances + 1;
+    -- RAISE NOTICE '# of instances for employee: %', num_of_instances + 1;
 
     RETURN NEW;
 END;

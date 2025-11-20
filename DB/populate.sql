@@ -335,7 +335,7 @@ BEGIN
     END IF;
 
     FOR inst_rec IN SELECT instance_id FROM course_instance ORDER BY instance_id LOOP
-        num_pa := 1 + (inst_rec.instance_id % 3); -- 1..3 planned activities
+        num_pa := 5; -- 1 + (inst_rec.instance_id % 3); -- 1..3 planned activities
         FOR ta_choice IN 1..num_pa LOOP
             pa_hours := 10 + ((inst_rec.instance_id + ta_choice) % 40); -- planned hours between 10..49
             INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
