@@ -23,10 +23,27 @@ FROM (
     GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, i.study_year, i.num_students, ea.exam_hours, ea.admin_hours) AS f;
 
 
-2. Calculate the total allocated hours with the multiplication factor along with the break-ups for each activity and for each teacher, for a current years’ course instance.
+2. Calculate the total allocated hours with the multiplication factor along with the break-ups for each activity and for each teacher, 
+for a current years’ course instance.
 
-SELECT COUNT(epa.employement_id)
-FROM employee_planned_activity epa
-JOIN planned_activity pa ON pa.planned_activity_id = epa.planned_activity_id
-JOIN course_instance i ON i.instance_id = pa.instance_id
-WHERE i.instance_id = 1;
+
+
+SELECT 
+    l.course_code, i.instance_id, l.hp, p.first_name || ' ' || p.last_name AS teacher_name, j.job_title,
+    SUM(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END) AS lecture_hours,
+    SUM(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END) AS seminar_hours,
+    SUM(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END) AS lab_hours,
+    SUM(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END) AS tutorial_hours,
+    SUM(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END) AS other_hours,
+    ea.exam_hours, ea.admin_hours
+FROM course_instance i
+JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+JOIN planned_activity pa ON pa.instance_id = i.instance_id
+JOIN employee_planned_activity epa ON epa.planned_activity_id = pa.planned_activity_id
+JOIN employee e ON e.employement_id = epa.employement_id
+JOIN person p ON p.person_id = e.person_id
+JOIN job_title j ON j.job_title_id = e.job_title_id
+JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+JOIN exam_and_admin_hours ea ON ea.instance_id = i.instance_id
+WHERE i.instance_id = 10
+GROUP BY l.course_code, i.instance_id, l.hp, teacher_name, j.job_title, ea.exam_hours, ea.admin_hours;
