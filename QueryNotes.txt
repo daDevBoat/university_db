@@ -1,26 +1,26 @@
 1. Calculate the total hours (with the multiplication factor) along with the break-ups for each activity, for the current years’ course instances. 
 
 
-
 SELECT 
     f.course_code, f.instance_id, f.hp, f.study_period, f.study_year, f.num_students, f.lecture_hours, f.seminar_hours, f.lab_hours, f.tutorial_hours, f.other_hours, f.exam_hours, f.admin_hours,
     f.lecture_hours + f.seminar_hours + f.lab_hours + f.tutorial_hours + f.other_hours + f.exam_hours + f.admin_hours AS total_hours
 FROM (
     SELECT 
         l.course_code, i.instance_id, l.hp, l.study_period, i.study_year, i.num_students,
-        SUM(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END) AS lecture_hours,
-        SUM(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END) AS seminar_hours,
-        SUM(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END) AS lab_hours,
-        SUM(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END) AS tutorial_hours,
-        SUM(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END) AS other_hours,
-        ea.exam_hours, ea.admin_hours
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS admin_hours
     FROM course_instance i
     JOIN course_layout l ON l.course_layout_id = i.course_layout_id
     JOIN planned_activity pa ON pa.instance_id = i.instance_id
     JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
-    JOIN exam_and_admin_hours ea ON ea.instance_id = i.instance_id
     WHERE i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
-    GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, i.study_year, i.num_students, ea.exam_hours, ea.admin_hours) AS f;
+    GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, i.study_year, i.num_students) AS f
+    ORDER BY f.study_period;
 
 
 2. Calculate the total allocated hours with the multiplication factor along with the break-ups for each activity and for each teacher, 
@@ -32,13 +32,13 @@ SELECT
 FROM (
     SELECT 
         l.course_code, i.instance_id, l.hp, p.first_name || ' ' || p.last_name AS teacher_name, j.job_title,
-        SUM(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END) AS lecture_hours,
-        SUM(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END) AS seminar_hours,
-        SUM(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END) AS lab_hours,
-        SUM(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END) AS tutorial_hours,
-        SUM(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END) AS other_hours,
-        SUM(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(pa.planned_hours * ta.factor) END) AS exam_hours,
-        SUM(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(pa.planned_hours * ta.factor) END) AS admin_hours
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS admin_hours
     FROM course_instance i
     JOIN course_layout l ON l.course_layout_id = i.course_layout_id
     JOIN planned_activity pa ON pa.instance_id = i.instance_id
@@ -53,4 +53,25 @@ FROM (
         WHERE study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
         ORDER BY instance_id ASC LIMIT 1
     )
-    GROUP BY l.course_code, i.instance_id, l.hp, teacher_name, j.job_title) AS f;
+    GROUP BY l.course_code, i.instance_id, l.hp, teacher_name, j.job_title) AS f
+    ORDER BY f.teacher_name ASC;
+
+
+3. Calculate the total allocated hours (with multiplication factors) for a teacher, only for the current years’ course instances.
+
+
+
+
+
+
+
+
+Test queries
+#################################
+
+INSERT INTO course_instance(course_layout_id, num_students, study_year)
+SELECT course_layout_id, 69, 2025
+FROM course_layout
+WHERE course_code = 'KY1323' AND study_period = '1'::period_enum
+ORDER BY course_layout_id DESC 
+LIMIT 1;
