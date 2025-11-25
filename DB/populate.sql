@@ -5,7 +5,9 @@ VALUES
     ('Lab', 2.4),
     ('Tutorial', 2.4),
     ('Seminar', 1.8),
-    ('Other', 1)
+    ('Other', 1),
+    ('Exam', 1),
+    ('Admin', 1)
 ON CONFLICT (activity_name) DO NOTHING;
 
 INSERT INTO job_title (job_title)
@@ -339,7 +341,7 @@ BEGIN
         FOR ta_choice IN 1..num_pa LOOP
             pa_hours := 10 + ((inst_rec.instance_id + ta_choice) % 40); -- planned hours between 10..49
             INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
-            VALUES (inst_rec.instance_id, ta_ids[1 + ((inst_rec.instance_id + ta_choice) % ta_count)], pa_hours);
+            VALUES (inst_rec.instance_id, ta_choice, pa_hours);
         END LOOP;
     END LOOP;
 END
@@ -355,66 +357,93 @@ DECLARE
         WHERE j.job_title = 'Teacher'
         ORDER BY e.employement_id
     );
-    teacher_count INT := array_length(teacher_ids,1);
+    teacher_count INT := array_length(teacher_ids, 1);
+
     pa_rec RECORD;
+    v_instance_id INT;
     v_study_year INT;
     v_course_layout_id INT;
     v_study_period period_enum;
-    instance_limit INT := 4;
-    allocations INT;
+
+    instance_limit INT;       -- loaded from rule table
+    allocations_for_instance INT;
     off INT;
     cand_id INT;
     try_idx INT := 0;
+
+    -- Track which teacher will get 2-3 activities per instance
+    main_teacher_id INT;
+    main_teacher_assigned_count INT := 0;
 BEGIN
+    -- Fetch the instance limit dynamically
+    SELECT limit_value
+    INTO instance_limit
+    FROM rule
+    WHERE name = 'employee_instance_limit';
+
+    IF instance_limit IS NULL THEN
+        RAISE EXCEPTION 'Rule employee_instance_limit not found or NULL';
+    END IF;
+
     IF teacher_count IS NULL OR teacher_count = 0 THEN
         RAISE EXCEPTION 'No teachers found - cannot assign planned activities.';
     END IF;
 
-    FOR pa_rec IN SELECT planned_activity_id, instance_id FROM planned_activity ORDER BY planned_activity_id LOOP
-        -- fetch course instance info
-        SELECT study_year, course_layout_id
-        INTO v_study_year, v_course_layout_id
-        FROM course_instance
-        WHERE instance_id = pa_rec.instance_id;
-
-        SELECT study_period
-        INTO v_study_period
-        FROM course_layout
-        WHERE course_layout_id = v_course_layout_id;
-
-        -- Round-robin assignment to teachers, ensuring 2–4 per period
+    -- Loop over all course instances (all study years)
+    FOR v_instance_id, v_study_year, v_course_layout_id, v_study_period IN
+        SELECT ci.instance_id, ci.study_year, ci.course_layout_id, cl.study_period
+        FROM course_instance ci
+        JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
+        ORDER BY ci.instance_id
+    LOOP
+        -- Reset per-instance variables
+        main_teacher_id := teacher_ids[1 + (try_idx % teacher_count)];
+        main_teacher_assigned_count := 0;
         try_idx := try_idx + 1;
-        FOR off IN 0..(teacher_count - 1) LOOP
-            cand_id := teacher_ids[1 + ((try_idx + off) % teacher_count)];
 
-            SELECT COUNT(DISTINCT p.instance_id) INTO allocations
+        -- Get all planned activities for this instance
+        FOR pa_rec IN
+            SELECT planned_activity_id
+            FROM planned_activity
+            WHERE instance_id = v_instance_id
+            ORDER BY planned_activity_id
+        LOOP
+            -- Decide which teacher to assign
+            IF main_teacher_assigned_count < 3 THEN
+                cand_id := main_teacher_id;   -- main teacher gets first 2-3 assignments
+                main_teacher_assigned_count := main_teacher_assigned_count + 1;
+            ELSE
+                -- Round-robin assign remaining teachers for this instance
+                cand_id := teacher_ids[1 + ((try_idx + pa_rec.planned_activity_id) % teacher_count)];
+                -- allow main teacher up to 3 activities
+                IF cand_id = main_teacher_id AND main_teacher_assigned_count < 3 THEN
+                    main_teacher_assigned_count := main_teacher_assigned_count + 1;
+                END IF;
+            END IF;
+
+            -- Check teacher's allocation for this study_year & period
+            SELECT COUNT(*)
+            INTO allocations_for_instance
             FROM employee_planned_activity epa
             JOIN planned_activity p ON p.planned_activity_id = epa.planned_activity_id
             JOIN course_instance ci ON ci.instance_id = p.instance_id
             JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
             WHERE epa.employement_id = cand_id
-              AND cl.study_period = v_study_period
-              AND ci.study_year = v_study_year;
+              AND ci.study_year = v_study_year
+              AND cl.study_period = v_study_period;
 
-            IF allocations < 2 THEN  -- ensure minimum 2 per period
+            IF allocations_for_instance < instance_limit THEN
                 INSERT INTO employee_planned_activity (employement_id, planned_activity_id)
                 VALUES (cand_id, pa_rec.planned_activity_id)
                 ON CONFLICT DO NOTHING;
-                EXIT; -- assigned
             END IF;
+
         END LOOP;
 
-        -- fallback: attempt to assign if less than max 4 (trigger will enforce)
-        BEGIN
-            INSERT INTO employee_planned_activity (employement_id, planned_activity_id)
-            VALUES (teacher_ids[1 + (try_idx % teacher_count)], pa_rec.planned_activity_id)
-            ON CONFLICT DO NOTHING;
-        EXCEPTION WHEN OTHERS THEN
-            RAISE NOTICE 'Could not assign planned_activity % due to trigger/limit or other error.', pa_rec.planned_activity_id;
-        END;
     END LOOP;
-END
-$$;
+
+END $$;
+
 
 -- 10. Salary history: at least two entries per employee (using enum type for period)
 DO $$

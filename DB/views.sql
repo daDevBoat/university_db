@@ -1,3 +1,8 @@
+/*
+
+UNUSED AFTER TRIGGER WAS ADDED BACK TO SOLVE TASK 2
+
+
 CREATE OR REPLACE VIEW exam_and_admin_hours AS
 SELECT 
     l.course_code,
@@ -8,3 +13,4 @@ FROM course_instance i
 JOIN course_layout l ON l.course_layout_id = i.course_layout_id
 JOIN calculation exam_calc ON exam_calc.name = 'exam_calc'
 JOIN calculation admin_calc ON admin_calc.name = 'admin_calc';
+*/

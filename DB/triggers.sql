@@ -78,6 +78,71 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION calculate_exam_admin_hours() RETURNS trigger AS $$
+DECLARE
+    update_flag BOOLEAN;
+    hp_value REAL;
+BEGIN
+    IF TG_NARGS > 0 THEN
+        update_flag := TG_ARGV[0];
+    ELSE
+        RAISE EXCEPTION 'Trigger needs update flag';
+    END IF;
+
+    SELECT hp INTO hp_value
+    FROM course_layout
+    WHERE course_layout_id = NEW.course_layout_id;
+
+    IF update_flag THEN
+        -- Examination
+        UPDATE planned_activity pa
+        SET planned_hours = hp_value * exam_calc.hp_factor + NEW.num_students * exam_calc.students_factor + exam_calc.constant
+        FROM teaching_activity ta
+        JOIN calculation exam_calc ON exam_calc.name = 'exam_calc'
+        WHERE 
+            pa.instance_id = NEW.instance_id
+            AND pa.teaching_activity_id = ta.teaching_activity_id
+            AND ta.activity_name = 'Exam';
+
+        -- Admin
+        UPDATE planned_activity pa
+        SET planned_hours = hp_value * admin_calc.hp_factor + NEW.num_students * admin_calc.students_factor + admin_calc.constant
+        FROM teaching_activity ta
+        JOIN calculation admin_calc ON admin_calc.name = 'admin_calc'
+        WHERE 
+            pa.instance_id = NEW.instance_id
+            AND pa.teaching_activity_id = ta.teaching_activity_id
+            AND ta.activity_name = 'Admin';
+    ELSE -- INSERT
+        -- Examination
+        INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
+        SELECT NEW.instance_id, ta.teaching_activity_id, hp_value * exam_calc.hp_factor + NEW.num_students * exam_calc.students_factor + exam_calc.constant
+        FROM teaching_activity ta
+        JOIN calculation exam_calc ON exam_calc.name = 'exam_calc'
+        WHERE ta.activity_name = 'Exam';
+
+        -- Admin
+        INSERT INTO planned_activity (instance_id, teaching_activity_id, planned_hours)
+        SELECT NEW.instance_id, ta.teaching_activity_id, hp_value * admin_calc.hp_factor + NEW.num_students * admin_calc.students_factor + admin_calc.constant
+        FROM teaching_activity ta
+        JOIN calculation admin_calc ON admin_calc.name = 'admin_calc'
+        WHERE ta.activity_name = 'Admin';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER course_instance_calc_insert_trigger
+AFTER INSERT ON course_instance
+FOR EACH ROW
+EXECUTE FUNCTION calculate_exam_admin_hours(FALSE);
+
+CREATE TRIGGER course_instance_calc_update_trigger
+AFTER UPDATE ON course_instance
+FOR EACH ROW
+EXECUTE FUNCTION calculate_exam_admin_hours(TRUE);
+
 CREATE TRIGGER min_max_students_triger
 BEFORE INSERT ON course_instance
 FOR EACH ROW
