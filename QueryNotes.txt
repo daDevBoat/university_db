@@ -20,7 +20,7 @@ FROM (
     JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
     WHERE i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
     GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, i.study_year, i.num_students) AS f
-    ORDER BY f.study_period;
+ORDER BY f.study_period;
 
 
 2. Calculate the total allocated hours with the multiplication factor along with the break-ups for each activity and for each teacher, 
@@ -54,24 +54,105 @@ FROM (
         ORDER BY instance_id ASC LIMIT 1
     )
     GROUP BY l.course_code, i.instance_id, l.hp, teacher_name, j.job_title) AS f
-    ORDER BY f.teacher_name ASC;
+ORDER BY f.teacher_name ASC;
 
 
 3. Calculate the total allocated hours (with multiplication factors) for a teacher, only for the current years’ course instances.
 
+SELECT 
+    f.course_code, f.instance_id, f.hp, f.study_period, f.teacher_name, f.lecture_hours, f.seminar_hours, f.lab_hours, f.tutorial_hours, f.other_hours, f.exam_hours, f.admin_hours,
+    f.lecture_hours + f.seminar_hours + f.lab_hours + f.tutorial_hours + f.other_hours + f.exam_hours + f.admin_hours AS total_hours
+FROM (
+    SELECT 
+        l.course_code, i.instance_id, l.hp, l.study_period, p.first_name || ' ' || p.last_name AS teacher_name,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS admin_hours
+    FROM course_instance i 
+    JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+    JOIN planned_activity pa ON pa.instance_id = i.instance_id
+    JOIN employee_planned_activity epa ON epa.planned_activity_id = pa.planned_activity_id
+    JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+    JOIN employee e ON e.employement_id = epa.employement_id
+    JOIN person p ON p.person_id = e.person_id
+    WHERE i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
+    GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, teacher_name) AS f
+WHERE f.teacher_name = 'Carl Lund'
+ORDER BY f.study_period ASC;
 
 
 
+4. List employee ids and names of all teachers who are allocated in more than a specific number of course instances during the current period.
 
+SELECT e.employement_id, p.first_name || ' ' || p.last_name AS teacher_name, l.study_period, COUNT(l.study_period) AS num_of_courses
+FROM employee e
+JOIN person p ON p.person_id = e.person_id
+JOIN job_title j ON j.job_title_id = e.job_title_id
+JOIN employee_planned_activity epa ON epa.employement_id = e.employement_id
+JOIN planned_activity pa ON pa.planned_activity_id = epa.planned_activity_id
+JOIN course_instance i ON i.instance_id = pa.instance_id
+JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+WHERE j.job_title = 'Teacher' AND i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int AND l.study_period::char = get_current_period()::char
+GROUP BY e.employement_id, p.first_name || ' ' || p.last_name, l.study_period
+HAVING COUNT(l.study_period) > 1;
 
 
 
 Test queries
 #################################
 
-INSERT INTO course_instance(course_layout_id, num_students, study_year)
-SELECT course_layout_id, 69, 2025
-FROM course_layout
-WHERE course_code = 'KY1323' AND study_period = '1'::period_enum
-ORDER BY course_layout_id DESC 
-LIMIT 1;
+
+-- FOR 2.4:
+
+SELECT e.employement_id, p.first_name || ' ' || p.last_name AS teacher_name, l.study_period
+FROM employee e
+JOIN person p ON p.person_id = e.person_id
+JOIN job_title j ON j.job_title_id = e.job_title_id
+JOIN employee_planned_activity epa ON epa.employement_id = e.employement_id
+JOIN planned_activity pa ON pa.planned_activity_id = epa.planned_activity_id
+JOIN course_instance i ON i.instance_id = pa.instance_id
+JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+WHERE j.job_title = 'Teacher' AND i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int AND l.study_period::char = get_current_period()::char;
+
+
+
+GRAVEYARD
+#####################################
+
+TASK 2.3 v1:
+
+SELECT 
+    f.course_code, f.instance_id, f.hp, f.study_period, f.teacher_name, f.lecture_hours, f.seminar_hours, f.lab_hours, f.tutorial_hours, f.other_hours, f.exam_hours, f.admin_hours,
+    f.lecture_hours + f.seminar_hours + f.lab_hours + f.tutorial_hours + f.other_hours + f.exam_hours + f.admin_hours AS total_hours
+FROM (
+    SELECT 
+        l.course_code, i.instance_id, l.hp, l.study_period, p.first_name || ' ' || p.last_name AS teacher_name,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS admin_hours
+    FROM course_instance i 
+    JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+    JOIN planned_activity pa ON pa.instance_id = i.instance_id
+    JOIN employee_planned_activity epa ON epa.planned_activity_id = pa.planned_activity_id
+    JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+    JOIN employee e ON e.employement_id = epa.employement_id
+    JOIN person p ON p.person_id = e.person_id
+    WHERE 
+        e.employement_id IN (
+            SELECT e.employement_id
+            FROM employee e
+            JOIN job_title j ON j.job_title_id = e.job_title_id
+            WHERE j.job_title = 'Teacher'
+            ORDER BY e.employement_id ASC LIMIT 10
+        ) AND 
+        i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
+    GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, teacher_name) AS f
+ORDER BY f.study_period ASC;

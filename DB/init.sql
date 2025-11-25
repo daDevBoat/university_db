@@ -113,31 +113,29 @@ CREATE TABLE person_phone (
     PRIMARY KEY (person_id, phone_id)
 );
 
-
+CREATE OR REPLACE FUNCTION get_current_period()
+RETURNS INT AS $$
+DECLARE
+    date_no_year CHAR(5);
+BEGIN
+    SELECT TO_CHAR(CURRENT_DATE, 'MM-DD') INTO date_no_year;
+    
+    IF date_no_year < '04-01' THEN
+        RETURN '1';
+    ELSIF date_no_year < '07-01' THEN
+        RETURN '2';
+    ELSIF date_no_year < '10-01' THEN 
+        RETURN '3';
+    ELSE
+        RETURN '4';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
 
 /*
 CODE GRAVEYARD NOT USED
 
-CREATE OR REPLACE FUNCTION get_current_period()
-RETURNS INT AS $$
-DECLARE
-    period INT;
-    date_no_year CHAR(5);
-BEGIN
-    SELECT TO_CHAR(CURRENT_DATE, 'MM-DD') INTO date_no_year;
-    RAISE NOTICE 'date: %', date_no_year;
-    
-    IF date_no_year < '04-01' THEN
-        RETURN 1;
-    ELSIF date_no_year < '07-01' THEN
-        RETURN 2;
-    ELSIF date_no_year < '10-01' THEN 
-        RETURN 3;
-    ELSE
-        RETURN 4;
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
+
 
 
 CREATE OR REPLACE FUNCTION calculate_exam_admin_hours() RETURNS trigger AS $$
