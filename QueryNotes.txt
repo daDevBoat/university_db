@@ -7,13 +7,13 @@ SELECT
 FROM (
     SELECT 
         l.course_code, i.instance_id, l.hp, l.study_period, i.study_year, i.num_students,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lecture_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS seminar_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lab_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS tutorial_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS other_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS exam_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS admin_hours
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS admin_hours
     FROM course_instance i
     JOIN course_layout l ON l.course_layout_id = i.course_layout_id
     JOIN planned_activity pa ON pa.instance_id = i.instance_id
@@ -32,13 +32,13 @@ SELECT
 FROM (
     SELECT 
         l.course_code, i.instance_id, l.hp, p.first_name || ' ' || p.last_name AS teacher_name, j.job_title,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lecture_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS seminar_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS lab_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS tutorial_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS other_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS exam_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(pa.planned_hours * ta.factor) END, 0)) AS admin_hours
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(pa.planned_hours * ta.factor, 2) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(pa.planned_hours * ta.factor, 2) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(pa.planned_hours * ta.factor, 2) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(pa.planned_hours * ta.factor, 2) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND(pa.planned_hours * ta.factor, 2) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(pa.planned_hours * ta.factor, 2) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(pa.planned_hours * ta.factor, 2) END, 0)) AS admin_hours
     FROM course_instance i
     JOIN course_layout l ON l.course_layout_id = i.course_layout_id
     JOIN planned_activity pa ON pa.instance_id = i.instance_id
@@ -65,13 +65,13 @@ SELECT
 FROM (
     SELECT 
         l.course_code, i.instance_id, l.hp, p.first_name || ' ' || p.last_name AS teacher_name, j.job_title,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND(epa.allocated_hours * ta.factor) END, 0)) AS lecture_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND(epa.allocated_hours * ta.factor) END, 0)) AS seminar_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND(epa.allocated_hours * ta.factor) END, 0)) AS lab_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND(epa.allocated_hours * ta.factor) END, 0)) AS tutorial_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND(epa.allocated_hours * ta.factor) END, 0)) AS other_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND(epa.allocated_hours * ta.factor) END, 0)) AS exam_hours,
-        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND(epa.allocated_hours * ta.factor) END, 0)) AS admin_hours
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS admin_hours
     FROM course_instance i
     JOIN course_layout l ON l.course_layout_id = i.course_layout_id
     JOIN planned_activity pa ON pa.instance_id = i.instance_id
