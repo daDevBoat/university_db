@@ -99,6 +99,7 @@ CREATE TABLE employee_skill_set (
 CREATE TABLE employee_planned_activity (
     employement_id INT NOT NULL REFERENCES employee(employement_id) ON UPDATE CASCADE,
     planned_activity_id INT NOT NULL REFERENCES planned_activity(planned_activity_id) ON UPDATE CASCADE,
+    allocated_hours REAL NOT NULL,
     PRIMARY KEY (employement_id, planned_activity_id)
 );
 

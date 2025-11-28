@@ -347,7 +347,9 @@ BEGIN
 END
 $$;
 
--- 9. Assign teachers to planned activities (ensuring 2–4 allocations per period per year)
+-----------------------------------------------------------------------
+-- 9. Assign teachers to planned activities (max 5 teachers per instance)
+-----------------------------------------------------------------------
 DO $$
 DECLARE
     teacher_ids INT[] := ARRAY(
@@ -359,90 +361,135 @@ DECLARE
     );
     teacher_count INT := array_length(teacher_ids, 1);
 
-    pa_rec RECORD;
+    pa RECORD;
     v_instance_id INT;
     v_study_year INT;
     v_course_layout_id INT;
     v_study_period period_enum;
 
-    instance_limit INT;       -- loaded from rule table
-    allocations_for_instance INT;
-    off INT;
-    cand_id INT;
-    try_idx INT := 0;
+    instance_limit INT;
 
-    -- Track which teacher will get 2-3 activities per instance
-    main_teacher_id INT;
-    main_teacher_assigned_count INT := 0;
+    -- Teachers chosen for this instance (2–5 teachers)
+    instance_teachers INT[];
+
+    -- Local variables
+    tid INT;
+    teacher_load INT;
+    pa_teachers INT[];
+    num_pa_teachers INT;
+
+    remaining_hours REAL;
+    split REAL;
+    idx INT;
 BEGIN
-    -- Fetch the instance limit dynamically
-    SELECT limit_value
-    INTO instance_limit
+    IF teacher_count IS NULL OR teacher_count = 0 THEN
+        RAISE EXCEPTION 'No teachers found.';
+    END IF;
+
+    SELECT limit_value INTO instance_limit
     FROM rule
     WHERE name = 'employee_instance_limit';
 
     IF instance_limit IS NULL THEN
-        RAISE EXCEPTION 'Rule employee_instance_limit not found or NULL';
+        RAISE EXCEPTION 'employee_instance_limit rule missing.';
     END IF;
 
-    IF teacher_count IS NULL OR teacher_count = 0 THEN
-        RAISE EXCEPTION 'No teachers found - cannot assign planned activities.';
-    END IF;
-
-    -- Loop over all course instances (all study years)
+    -------------------------------------------------------------------
+    -- Loop over course instances
+    -------------------------------------------------------------------
     FOR v_instance_id, v_study_year, v_course_layout_id, v_study_period IN
         SELECT ci.instance_id, ci.study_year, ci.course_layout_id, cl.study_period
         FROM course_instance ci
         JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
         ORDER BY ci.instance_id
     LOOP
-        -- Reset per-instance variables
-        main_teacher_id := teacher_ids[1 + (try_idx % teacher_count)];
-        main_teacher_assigned_count := 0;
-        try_idx := try_idx + 1;
+        -------------------------------------------------------------------
+        -- Select 2–5 teachers for this entire instance
+        -- We choose them up front and reuse them for ALL planned activities
+        -------------------------------------------------------------------
+        instance_teachers := ARRAY[]::INT[];
 
-        -- Get all planned activities for this instance
-        FOR pa_rec IN
-            SELECT planned_activity_id
-            FROM planned_activity
-            WHERE instance_id = v_instance_id
-            ORDER BY planned_activity_id
-        LOOP
-            -- Decide which teacher to assign
-            IF main_teacher_assigned_count < 3 THEN
-                cand_id := main_teacher_id;   -- main teacher gets first 2-3 assignments
-                main_teacher_assigned_count := main_teacher_assigned_count + 1;
-            ELSE
-                -- Round-robin assign remaining teachers for this instance
-                cand_id := teacher_ids[1 + ((try_idx + pa_rec.planned_activity_id) % teacher_count)];
-                -- allow main teacher up to 3 activities
-                IF cand_id = main_teacher_id AND main_teacher_assigned_count < 3 THEN
-                    main_teacher_assigned_count := main_teacher_assigned_count + 1;
-                END IF;
-            END IF;
+        FOR idx IN 0..teacher_count LOOP
+            tid := teacher_ids[((v_instance_id + idx) % teacher_count) + 1];
 
-            -- Check teacher's allocation for this study_year & period
+            -- Check limit for this teacher (per period)
             SELECT COUNT(*)
-            INTO allocations_for_instance
+            INTO teacher_load
             FROM employee_planned_activity epa
             JOIN planned_activity p ON p.planned_activity_id = epa.planned_activity_id
             JOIN course_instance ci ON ci.instance_id = p.instance_id
             JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
-            WHERE epa.employement_id = cand_id
+            WHERE epa.employement_id = tid
               AND ci.study_year = v_study_year
               AND cl.study_period = v_study_period;
 
-            IF allocations_for_instance < instance_limit THEN
-                INSERT INTO employee_planned_activity (employement_id, planned_activity_id)
-                VALUES (cand_id, pa_rec.planned_activity_id)
-                ON CONFLICT DO NOTHING;
+            IF teacher_load < instance_limit THEN
+                instance_teachers := array_append(instance_teachers, tid);
             END IF;
 
+            EXIT WHEN array_length(instance_teachers,1) = 5;  -- max 5 per instance
         END LOOP;
 
-    END LOOP;
+        -- ensure at least 2 teachers
+        IF array_length(instance_teachers,1) < 2 THEN
+            instance_teachers := teacher_ids[1:2];
+        END IF;
 
+        -------------------------------------------------------------------
+        -- Assign teachers to each planned activity
+        --  Reuse the same subset for every PA
+        -------------------------------------------------------------------
+        FOR pa IN
+            SELECT planned_activity_id, planned_hours
+            FROM planned_activity
+            WHERE instance_id = v_instance_id
+            ORDER BY planned_activity_id
+        LOOP
+            ------------------------------------------------------------
+            -- Each PA uses 2–3 teachers chosen from instance_teachers
+            ------------------------------------------------------------
+            num_pa_teachers := 2 + ((pa.planned_activity_id + v_instance_id) % 2);  -- 2 or 3
+
+            IF num_pa_teachers > array_length(instance_teachers,1) THEN
+                num_pa_teachers := array_length(instance_teachers,1);
+            END IF;
+
+            pa_teachers := instance_teachers[1:num_pa_teachers];
+
+            ------------------------------------------------------------
+            -- Now split the planned hours across these teachers
+            ------------------------------------------------------------
+            remaining_hours := pa.planned_hours;
+
+            FOR idx IN 1..num_pa_teachers LOOP
+                IF idx < num_pa_teachers THEN
+                    split := FLOOR(
+                        remaining_hours / (num_pa_teachers - (idx - 1))
+                    );
+                ELSE
+                    split := remaining_hours;  -- last teacher gets the rest
+                END IF;
+
+                INSERT INTO employee_planned_activity(
+                    employement_id,
+                    planned_activity_id,
+                    allocated_hours
+                )
+                VALUES (
+                    pa_teachers[idx],
+                    pa.planned_activity_id,
+                    split
+                );
+
+                remaining_hours := remaining_hours - split;
+            END LOOP;
+
+        END LOOP; -- PA loop
+    END LOOP; -- instance loop
 END $$;
+-----------------------------------------------------------------------
+
+
 
 
 -- 10. Salary history: at least two entries per employee (using enum type for period)
