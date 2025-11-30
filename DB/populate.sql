@@ -349,7 +349,7 @@ $$;
 
 -----------------------------------------------------------------------
 -- 9. Assign teachers to planned activities
---    Allocated hours are REAL; sum exactly equals planned_hours
+--    Allocated hours REAL; sum per PA between 50% and 150% of planned_hours
 -----------------------------------------------------------------------
 DO $$
 DECLARE
@@ -377,15 +377,8 @@ DECLARE
     pa_teachers INT[] := ARRAY[]::INT[];
     num_pa_teachers INT := 0;
 
-    per_teacher_hours REAL;
     idx INT;
-
-    -- track activity counts per teacher per instance using jsonb map { "tid": count }
-    teacher_activity_count JSONB;
-    current_count INT;
-    last_tid INT;
-    adj REAL;
-
+    alloc_hours REAL;
 BEGIN
     IF teacher_count IS NULL OR teacher_count = 0 THEN
         RAISE EXCEPTION 'No teachers found.';
@@ -399,7 +392,7 @@ BEGIN
     END IF;
 
     -------------------------------------------------------------------
-    -- Loop over instances
+    -- Loop over course instances
     -------------------------------------------------------------------
     FOR v_instance_id, v_study_year, v_course_layout_id, v_study_period IN
         SELECT ci.instance_id, ci.study_year, ci.course_layout_id, cl.study_period
@@ -407,13 +400,8 @@ BEGIN
         JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
         ORDER BY ci.instance_id
     LOOP
-        -------------------------------------------------------------------
-        -- Select instance teacher team (max 5), reset activity counts
-        -------------------------------------------------------------------
+        -- Select up to 5 teachers for this instance
         instance_teachers := ARRAY[]::INT[];
-        teacher_activity_count := '{}'::jsonb;
-
-        -- gather up to 5 teachers who still have capacity for the period
         FOR idx IN 0..GREATEST(teacher_count-1,0) LOOP
             tid := teacher_ids[((v_instance_id + idx) % teacher_count) + 1];
 
@@ -428,19 +416,14 @@ BEGIN
 
             IF teacher_load < instance_limit THEN
                 instance_teachers := array_append(instance_teachers, tid);
-                teacher_activity_count := jsonb_set(teacher_activity_count, ARRAY[tid::text], to_jsonb(0), true);
             END IF;
 
             EXIT WHEN array_length(instance_teachers,1) >= 5;
         END LOOP;
 
-        -- fallback: if we found fewer than 2 valid teachers, choose first two overall
+        -- fallback: ensure at least 2 teachers
         IF array_length(instance_teachers,1) IS NULL OR array_length(instance_teachers,1) < 2 THEN
             instance_teachers := ARRAY[ teacher_ids[1], teacher_ids[ LEAST(2, teacher_count) ] ]::INT[];
-            teacher_activity_count := '{}'::jsonb;
-            FOREACH tid IN ARRAY instance_teachers LOOP
-                teacher_activity_count := jsonb_set(teacher_activity_count, ARRAY[tid::text], to_jsonb(0), true);
-            END LOOP;
         END IF;
 
         -------------------------------------------------------------------
@@ -452,52 +435,38 @@ BEGIN
             WHERE instance_id = v_instance_id
             ORDER BY planned_activity_id
         LOOP
-            ----------------------------------------------------------------
-            -- Build list of eligible teachers for this PA (prefer those with <3 activities)
-            ----------------------------------------------------------------
+            -- Choose teachers for this activity (max 3, respecting max 3 activities per teacher)
             pa_teachers := ARRAY[]::INT[];
+            FOREACH tid IN ARRAY instance_teachers LOOP
+                SELECT COUNT(*) INTO teacher_load
+                FROM employee_planned_activity epa
+                JOIN planned_activity p ON p.planned_activity_id = epa.planned_activity_id
+                JOIN course_instance ci ON ci.instance_id = p.instance_id
+                JOIN course_layout cl ON cl.course_layout_id = ci.course_layout_id
+                WHERE epa.employement_id = tid
+                  AND ci.study_year = v_study_year
+                  AND cl.study_period = v_study_period;
 
-            IF instance_teachers IS NOT NULL THEN
-                FOREACH tid IN ARRAY instance_teachers LOOP
-                    current_count := COALESCE( (teacher_activity_count ->> tid::text)::INT, 0 );
-                    IF current_count < 3 THEN
-                        pa_teachers := array_append(pa_teachers, tid);
-                    END IF;
-                    EXIT WHEN array_length(pa_teachers,1) >= 3;
-                END LOOP;
-            END IF;
-
-            -- If fewer than 2 eligible, expand to instance_teachers to get at least 2
-            IF array_length(pa_teachers,1) IS NULL OR array_length(pa_teachers,1) < 2 THEN
-                IF array_length(instance_teachers,1) >= 2 THEN
-                    pa_teachers := instance_teachers[1:LEAST(3, array_length(instance_teachers,1))];
-                ELSE
-                    pa_teachers := ARRAY[ teacher_ids[1], teacher_ids[ LEAST(2, teacher_count) ] ]::INT[];
+                IF teacher_load < 3 THEN
+                    pa_teachers := array_append(pa_teachers, tid);
                 END IF;
-            END IF;
 
-            num_pa_teachers := array_length(pa_teachers,1);
-
-            -- guard: if still nothing, skip
-            IF num_pa_teachers IS NULL OR num_pa_teachers = 0 THEN
-                RAISE NOTICE 'Skipping PA % in instance %: no teachers available', pa.planned_activity_id, v_instance_id;
-                CONTINUE;
-            END IF;
-
-            ----------------------------------------------------------------
-            -- REAL hour allocation: divide planned_hours among teachers
-            ----------------------------------------------------------------
-            per_teacher_hours := pa.planned_hours / num_pa_teachers;
-
-            FOR idx IN 1..num_pa_teachers LOOP
-                INSERT INTO employee_planned_activity (employement_id, planned_activity_id, allocated_hours)
-                VALUES (pa_teachers[idx], pa.planned_activity_id, per_teacher_hours);
-
-                -- increment teacher activity count
-                current_count := COALESCE( (teacher_activity_count ->> pa_teachers[idx]::text)::INT, 0 );
-                teacher_activity_count := jsonb_set( teacher_activity_count, ARRAY[pa_teachers[idx]::text], to_jsonb(current_count + 1), true );
+                EXIT WHEN array_length(pa_teachers,1) >= 3;
             END LOOP;
 
+            -- If none eligible, pick first teacher
+            IF array_length(pa_teachers,1) IS NULL OR array_length(pa_teachers,1) = 0 THEN
+                pa_teachers := ARRAY[instance_teachers[1]];
+            END IF;
+
+            -- Allocate hours: sum between 50% and 150% of planned_hours
+            FOR idx IN 1..array_length(pa_teachers,1) LOOP
+                -- Random fraction between 50% and 150% distributed among teachers
+                alloc_hours := pa.planned_hours / array_length(pa_teachers,1) * (0.5 + random());
+                INSERT INTO employee_planned_activity (employement_id, planned_activity_id, allocated_hours)
+                VALUES (pa_teachers[idx], pa.planned_activity_id, alloc_hours)
+                ON CONFLICT DO NOTHING;
+            END LOOP;
         END LOOP; -- planned_activity
     END LOOP; -- instance
 END $$;
