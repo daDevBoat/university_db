@@ -1,5 +1,7 @@
-1. Calculate the total hours (with the multiplication factor) along with the break-ups for each activity, for the current years’ course instances. 
+Mandatory part
+----------------------------------------------
 
+1. Calculate the total hours (with the multiplication factor) along with the break-ups for each activity, for the current years’ course instances. 
 
 SELECT 
     f.course_code, f.instance_id, f.hp, f.study_period, f.study_year, f.num_students, f.lecture_hours, f.seminar_hours, f.lab_hours, f.tutorial_hours, f.other_hours, f.exam_hours, f.admin_hours,
@@ -25,7 +27,6 @@ ORDER BY f.study_period;
 
 2. Calculate the total allocated hours with the multiplication factor along with the break-ups for each activity and for each teacher, 
 for a current years’ course instance.
-
 
 SELECT 
     f.course_code, f.instance_id, f.hp, f.teacher_name, f.job_title, f.lecture_hours, f.seminar_hours, f.lab_hours, f.tutorial_hours, f.other_hours, f.exam_hours, f.admin_hours,
@@ -103,25 +104,29 @@ HAVING COUNT(DISTINCT i.instance_id) > 0;
 
 
 
-Higher grade queries
+Higher grade queries (see views.sql for the views used)
 -----------------------------------------------------------
 
 1. 
 SELECT * FROM planned_hours_per_course_instance;
 
 2.
-SELECT * 
+SELECT 
+    mv.course_code, mv.instance_id, mv.hp, mv.teacher_name, mv.job_title, 
+    mv.lecture_hours, mv.seminar_hours, mv.lab_hours, mv.tutorial_hours, mv.other_hours, mv.exam_hours, mv.admin_hours, mv.total_hours
 FROM allocated_hours_per_teacher mv
 WHERE mv.instance_id IN (
-        SELECT instance_id
-        FROM course_instance
-        WHERE study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
-        ORDER BY instance_id ASC LIMIT 1
+    SELECT instance_id
+    FROM course_instance
+    WHERE study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
+    ORDER BY instance_id ASC LIMIT 1
 );
 
 3. 
-SELECT *
-FROM teacher_load_per_period mv
+SELECT 
+    mv.course_code, mv.instance_id, mv.hp, mv.study_period, mv.teacher_name, 
+    mv.lecture_hours, mv.seminar_hours, mv.lab_hours, mv.tutorial_hours, mv.other_hours, mv.exam_hours, mv.admin_hours, mv.total_hours
+FROM allocated_hours_per_teacher mv
 WHERE mv.teacher_name = 'Josefin Pettersson';
 
 4.

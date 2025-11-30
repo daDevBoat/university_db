@@ -6,8 +6,9 @@ Be inside the PostgreSQL environment. Then run:
 
 \i triggers.sql
 
+\i populate.sql
+
 \i views.sql
 
-\i populate.sql
 
 Then you can query the database freely.
