@@ -1,0 +1,16 @@
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\bin\Debug\net10.0\UniversityDBApp.exe
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\bin\Debug\net10.0\UniversityDBApp.deps.json
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\bin\Debug\net10.0\UniversityDBApp.runtimeconfig.json
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\bin\Debug\net10.0\UniversityDBApp.dll
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\bin\Debug\net10.0\UniversityDBApp.pdb
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.AssemblyInfoInputs.cache
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.AssemblyInfo.cs
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.csproj.CoreCompileInputs.cache
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.sourcelink.json
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.dll
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\refint\UniversityDBApp.dll
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.pdb
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.genruntimeconfig.cache
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\ref\UniversityDBApp.dll
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\UniversityDBApp.csproj.AssemblyReference.cache
