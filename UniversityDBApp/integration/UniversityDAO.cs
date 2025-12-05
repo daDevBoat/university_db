@@ -72,11 +72,7 @@ public class UniversityDAO : IDisposable
             selectInstanceCmd.Parameters.AddWithValue("@id", instanceId);
             using var reader = selectInstanceCmd.ExecuteReader();
 
-            if (!reader.Read())
-            {
-                Console.WriteLine($"No course found with instance ID: {instanceId}");
-                return null;
-            }
+            if (!reader.Read()) return null;
             
             /* Creating the course object */
             Course course = new Course(
@@ -132,6 +128,8 @@ public class UniversityDAO : IDisposable
             return null;
         }
     }
+    
+    //public 
 
    
 }

@@ -19,11 +19,7 @@ public static class CommandLineInterpreter
             string? command = input?[0];
             string[]? args = input?.Skip(1).ToArray();
 
-            if (command == null)
-            {
-                Console.WriteLine("Write in a command");
-                continue;
-            }
+            if (command == null) continue;
             
             if (command == "exit" || command == "quit" || command == "q")
             {
@@ -36,6 +32,7 @@ public static class CommandLineInterpreter
                 if (args[0] == "teaching_activity")
                 {
                     Display.TeachingActivities(commandController.FindAllTeachingActivities());
+                    continue;
                 }
 
                 if (args[0] == "course")
@@ -50,9 +47,14 @@ public static class CommandLineInterpreter
                         }
                         Course? course = commandController.FindCourseById(instanceId);
 
-                        if (course == null) continue;
+                        if (course == null)
+                        {
+                            Console.WriteLine($"No course found with instance ID: {instanceId}");
+                            continue;
+                        }
                         
                         Display.Course(course);
+                        continue;
                     }
 
                     if (args[1] == "year")
@@ -65,13 +67,18 @@ public static class CommandLineInterpreter
                         }
                         List<Course>? courses = commandController.FindCoursesByYear(year);
 
-                        if (courses == null || courses.Count == 0) continue;
+                        if (courses == null || courses.Count == 0)
+                        {
+                            Console.WriteLine($"No courses found for the year: {year}");
+                            continue;
+                        }
                         
                         Display.Courses(courses);
+                        continue;
                     }
                 }
             }
-            
+            Console.WriteLine("Write a valid command. To see a list of valid commands write: help");
         }
     }
 }
@@ -96,7 +103,7 @@ static class Display
         var table = new ConsoleTable("instance id", "course code", "course name", "num of students", "study year", "study period", "hp");
         foreach (var course in courses)
         {
-            course.AddRow(ref table);
+            course.AddRow(table);
         }
         table.Write();
     }
