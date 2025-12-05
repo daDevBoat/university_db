@@ -63,15 +63,98 @@ public class UniversityDAO : IDisposable
         return activities;
     }
 
-    public Course FindCourse(int instanceId)
+    public Course? FindCourseByInstanceId(int instanceId)
     {
-        Course course = null;
-        return course;
+        try
+        {
+            /* SELECTING the course instance */
+            using var selectInstanceCmd = new NpgsqlCommand(Statements.FindCourseInstanceById, _connection);
+            selectInstanceCmd.Parameters.AddWithValue("@id", instanceId);
+            using var instanceReader = selectInstanceCmd.ExecuteReader();
+            instanceReader.Read();
+            int numStudents = instanceReader.GetInt32(2);
+            int studyYear = instanceReader.GetInt32(3);
+            int courseLayoutId = instanceReader.GetInt32(1);
+            instanceReader.Close();
+            
+            /* Then selecting the course layout */
+            using var selectLayoutCmd = new NpgsqlCommand(Statements.FindCourseLayoutById, _connection);
+            selectLayoutCmd.Parameters.AddWithValue("@id", courseLayoutId);
+            using var layoutReader = selectLayoutCmd.ExecuteReader();
+            layoutReader.Read();
+            
+            /* Creating the course object */
+            Course course = new Course(
+                instanceId,
+                layoutReader.GetString(1),
+                layoutReader.GetString(2),
+                numStudents,
+                studyYear,
+                layoutReader.GetString(6),
+                layoutReader.GetFloat(5)
+            );
+            layoutReader.Close();
+            return course;
+        }
+        catch (NpgsqlException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        return null;
     }
+
+    #if false
+    public List<Course>? FindCoursesByYear(int year)
+    {
+        try
+        {
+            ///* SELECTING the course instance */
+            using var selectInstanceCmd = new NpgsqlCommand(Statements.FindCourseInstanceById, _connection);
+            selectInstanceCmd.Parameters.AddWithValue("@year", year);
+            using var instanceReader = selectInstanceCmd.ExecuteReader();
+            instanceReader.Read();
+            int numStudents = instanceReader.GetInt32(2);
+            int studyYear = instanceReader.GetInt32(3);
+            int courseLayoutId = instanceReader.GetInt32(1);
+            instanceReader.Close();
+            
+           // /* Then selecting the course layout */
+            using var selectLayoutCmd = new NpgsqlCommand(Statements.FindCourseLayoutById, _connection);
+            selectLayoutCmd.Parameters.AddWithValue("@id", courseLayoutId);
+            using var layoutReader = selectLayoutCmd.ExecuteReader();
+            layoutReader.Read();
+            
+            /* Creating the course object */
+            Course course = new Course(
+                instanceId,
+                layoutReader.GetString(1),
+                layoutReader.GetString(2),
+                numStudents,
+                studyYear,
+                layoutReader.GetString(6),
+                layoutReader.GetFloat(5)
+            );
+            layoutReader.Close();
+            return course;
+        }
+        catch (NpgsqlException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        return null;
+    }
+    #endif
 }
 
 static class Statements
 { 
-    public static string FindCourseLayout = "SELECT course_layout_id, course_code, course_name, hp, study_period FROM course_layout WHERE course_layout_id = {0}";
-    public static string FindCourseInstance = "SELECT instance_id, course_layout_id, num_students, study_year FROM course_instance WHERE instance_id = {0}";
+    //public const string FindCourseLayoutById = "SELECT * FROM course_layout WHERE course_layout_id = @id";
+    public const string FindCourseInstanceById = """
+                                                 SELECT * 
+                                                 FROM course_instance i 
+                                                 JOIN course_layout l ON l.course_layout_id = i.course_layout_id 
+                                                 WHERE instance_id = @id
+                                                 """;
+    public const string FindCourseInstanceByYear = "SELECT * FROM course_instance WHERE study_year = @year";
+    
 }

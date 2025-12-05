@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using ConsoleTables;
 namespace UniversityDBApp.model;
 
 public class TeachingActivity
@@ -16,7 +17,11 @@ public class TeachingActivity
 
     public override string ToString()
     {
-        return $"{this.TeachingActivityId.ToString().PadRight(5)}| {this.TeachingActivityName.PadRight(20)}| {this.Factor.ToString(CultureInfo.InvariantCulture)}";
+        return $"""
+                {this.TeachingActivityId.ToString().PadRight(5)}| 
+                {this.TeachingActivityName.PadRight(20)}| 
+                {this.Factor.ToString(CultureInfo.InvariantCulture)}
+                """;
     }
 }
 
@@ -26,12 +31,12 @@ public class Course
     public int InstanceId { get; }
     public string CourseCode { get; }
     public string CourseName { get; }
-    public string NumStudents { get; set; }
-    public string StudyYear { get; }
+    public int NumStudents { get; set; }
+    public int StudyYear { get; }
     public string StudyPeriod { get; }
-    public float Hp { get; }
+    public float Hp { get; set;  }
 
-    public Course(int instanceId, string courseCode, string courseName, string numStudents, string studyYear, string studyPeriod, float hp)
+    public Course(int instanceId, string courseCode, string courseName, int numStudents, int studyYear, string studyPeriod, float hp)
     {
         this.InstanceId = instanceId;
         this.CourseCode = courseCode;
@@ -40,5 +45,13 @@ public class Course
         this.StudyYear = studyYear;
         this.StudyPeriod = studyPeriod;
         this.Hp = hp;
+    }
+
+    public override string ToString()
+    {
+        var table = new ConsoleTable("instance id", "course code", "course name", "num of students", "study year", "study period", "hp");
+        table.AddRow(this.InstanceId, this.CourseCode, this.CourseName, this.NumStudents, this.StudyYear, this.StudyPeriod, this.Hp);
+        return table.ToString();
+        
     }
 }

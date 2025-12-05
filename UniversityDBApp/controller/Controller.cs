@@ -24,5 +24,19 @@ public class Controller
         }
         return activities;
     }
+
+    public Course? FindCourse(int instanceId)
+    {
+        try
+        {
+            Course? course = _uniDb.FindCourseByInstanceId(instanceId);
+            return course;
+        }
+        catch (NpgsqlException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        return null;
+    }
 }
 

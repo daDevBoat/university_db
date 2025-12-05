@@ -41,7 +41,30 @@ public static class CommandLineInterpreter
 
                 if (args[0] == "course")
                 {
-                    
+                    if (args[1] == "id")
+                    {
+                        int instanceId;
+                        if (!int.TryParse(args[1], out instanceId))
+                        {
+                            Console.WriteLine("Write an integer for the instance ID");
+                            continue;
+                        }
+                        
+                        Course? course = commandController.FindCourse(instanceId);
+
+                        if (course == null)
+                        {
+                            Console.WriteLine("No course with that instance id exists");
+                            continue;
+                        }
+
+                        Display.Course(course);
+                    }
+
+                    if (args[1] == "year")
+                    {
+                        
+                    }
                 }
             }
             
@@ -57,5 +80,10 @@ static class Display
         {
             Console.WriteLine(activity.ToString());
         }
+    }
+
+    public static void Course(Course course)
+    {
+        Console.WriteLine(course.ToString());
     }
 }

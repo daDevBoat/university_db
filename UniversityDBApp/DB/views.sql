@@ -51,6 +51,32 @@ FROM (
     GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, teacher_name, j.job_title) AS f
 ORDER BY f.study_period ASC;
 
+/* Same as above, just as a view */
+CREATE OR REPLACE VIEW allocated_hours_per_teacher_view AS
+SELECT 
+    f.course_code, f.instance_id, f.hp, f.study_period, f.teacher_name, f.job_title, f.lecture_hours, f.seminar_hours, f.lab_hours, f.tutorial_hours, f.other_hours, f.exam_hours, f.admin_hours,
+    f.lecture_hours + f.seminar_hours + f.lab_hours + f.tutorial_hours + f.other_hours + f.exam_hours + f.admin_hours AS total_hours
+FROM (
+    SELECT 
+        l.course_code, i.instance_id, l.hp, l.study_period, p.first_name || ' ' || p.last_name AS teacher_name, j.job_title,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((epa.allocated_hours * ta.factor)::numeric, 2) END, 0)) AS admin_hours
+    FROM course_instance i 
+    JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+    JOIN planned_activity pa ON pa.instance_id = i.instance_id
+    JOIN employee_planned_activity epa ON epa.planned_activity_id = pa.planned_activity_id
+    JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+    JOIN employee e ON e.employement_id = epa.employement_id
+    JOIN job_title j ON j.job_title_id = e.job_title_id
+    JOIN person p ON p.person_id = e.person_id
+    WHERE i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
+    GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, teacher_name, j.job_title) AS f
+ORDER BY f.study_period ASC;
 
 /* The view for the fourth query for the higher grade part */
 CREATE OR REPLACE VIEW planned_hours_vs_allocated_hours_per_instance AS
