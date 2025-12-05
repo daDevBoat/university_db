@@ -25,7 +25,7 @@ public class Controller
         return activities;
     }
 
-    public Course? FindCourse(int instanceId)
+    public Course? FindCourseById(int instanceId)
     {
         try
         {
@@ -33,6 +33,19 @@ public class Controller
             return course;
         }
         catch (NpgsqlException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        return null;
+    }
+
+    public List<Course>? FindCoursesByYear(int year)
+    {
+        try
+        {
+            List<Course>? courses = _uniDb.FindCoursesByYear(year);
+            return courses;
+        } catch (NpgsqlException ex)
         {
             Console.WriteLine(ex.Message);
         }

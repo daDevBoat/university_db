@@ -52,6 +52,10 @@ public class Course
         var table = new ConsoleTable("instance id", "course code", "course name", "num of students", "study year", "study period", "hp");
         table.AddRow(this.InstanceId, this.CourseCode, this.CourseName, this.NumStudents, this.StudyYear, this.StudyPeriod, this.Hp);
         return table.ToString();
-        
+    }
+
+    public void AddRow(ref ConsoleTable table)
+    {
+        table.AddRow(this.InstanceId, this.CourseCode, this.CourseName, this.NumStudents, this.StudyYear, this.StudyPeriod, this.Hp);
     }
 }

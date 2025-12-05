@@ -70,80 +70,70 @@ public class UniversityDAO : IDisposable
             /* SELECTING the course instance */
             using var selectInstanceCmd = new NpgsqlCommand(Statements.FindCourseInstanceById, _connection);
             selectInstanceCmd.Parameters.AddWithValue("@id", instanceId);
-            using var instanceReader = selectInstanceCmd.ExecuteReader();
-            instanceReader.Read();
-            int numStudents = instanceReader.GetInt32(2);
-            int studyYear = instanceReader.GetInt32(3);
-            int courseLayoutId = instanceReader.GetInt32(1);
-            instanceReader.Close();
-            
-            /* Then selecting the course layout */
-            using var selectLayoutCmd = new NpgsqlCommand(Statements.FindCourseLayoutById, _connection);
-            selectLayoutCmd.Parameters.AddWithValue("@id", courseLayoutId);
-            using var layoutReader = selectLayoutCmd.ExecuteReader();
-            layoutReader.Read();
+            using var reader = selectInstanceCmd.ExecuteReader();
+
+            if (!reader.Read())
+            {
+                Console.WriteLine($"No course found with instance ID: {instanceId}");
+                return null;
+            }
             
             /* Creating the course object */
             Course course = new Course(
                 instanceId,
-                layoutReader.GetString(1),
-                layoutReader.GetString(2),
-                numStudents,
-                studyYear,
-                layoutReader.GetString(6),
-                layoutReader.GetFloat(5)
+                reader.GetString(reader.GetOrdinal("course_code")),
+                reader.GetString(reader.GetOrdinal("course_name")),
+                reader.GetInt32(reader.GetOrdinal("num_students")),
+                reader.GetInt32(reader.GetOrdinal("study_year")),
+                reader.GetString(reader.GetOrdinal("study_period")),
+                reader.GetFloat(reader.GetOrdinal("hp"))
             );
-            layoutReader.Close();
+            reader.Close();
             return course;
         }
         catch (NpgsqlException ex)
         {
             Console.WriteLine(ex.Message);
+            return null;
         }
-        return null;
     }
 
-    #if false
+    
     public List<Course>? FindCoursesByYear(int year)
     {
         try
         {
-            ///* SELECTING the course instance */
-            using var selectInstanceCmd = new NpgsqlCommand(Statements.FindCourseInstanceById, _connection);
+            /* SELECTING the course instances */
+            using var selectInstanceCmd = new NpgsqlCommand(Statements.FindCourseInstanceByYear, _connection);
             selectInstanceCmd.Parameters.AddWithValue("@year", year);
-            using var instanceReader = selectInstanceCmd.ExecuteReader();
-            instanceReader.Read();
-            int numStudents = instanceReader.GetInt32(2);
-            int studyYear = instanceReader.GetInt32(3);
-            int courseLayoutId = instanceReader.GetInt32(1);
-            instanceReader.Close();
+            using var reader = selectInstanceCmd.ExecuteReader();
+            List<Course> courses = new List<Course>();
+            while (reader.Read())
+            {
+                /* Creating the course object */
+                Course course = new Course(
+                    reader.GetInt32(reader.GetOrdinal("instance_id")),
+                    reader.GetString(reader.GetOrdinal("course_code")),
+                    reader.GetString(reader.GetOrdinal("course_name")),
+                    reader.GetInt32(reader.GetOrdinal("num_students")),
+                    reader.GetInt32(reader.GetOrdinal("study_year")),
+                    reader.GetString(reader.GetOrdinal("study_period")),
+                    reader.GetFloat(reader.GetOrdinal("hp"))
+                );
+                courses.Add(course);
+            }
             
-           // /* Then selecting the course layout */
-            using var selectLayoutCmd = new NpgsqlCommand(Statements.FindCourseLayoutById, _connection);
-            selectLayoutCmd.Parameters.AddWithValue("@id", courseLayoutId);
-            using var layoutReader = selectLayoutCmd.ExecuteReader();
-            layoutReader.Read();
-            
-            /* Creating the course object */
-            Course course = new Course(
-                instanceId,
-                layoutReader.GetString(1),
-                layoutReader.GetString(2),
-                numStudents,
-                studyYear,
-                layoutReader.GetString(6),
-                layoutReader.GetFloat(5)
-            );
-            layoutReader.Close();
-            return course;
+            reader.Close();
+            return courses;
         }
         catch (NpgsqlException ex)
         {
             Console.WriteLine(ex.Message);
+            return null;
         }
-        return null;
     }
-    #endif
+
+   
 }
 
 static class Statements
@@ -155,6 +145,11 @@ static class Statements
                                                  JOIN course_layout l ON l.course_layout_id = i.course_layout_id 
                                                  WHERE instance_id = @id
                                                  """;
-    public const string FindCourseInstanceByYear = "SELECT * FROM course_instance WHERE study_year = @year";
+    public const string FindCourseInstanceByYear = """
+                                                   SELECT * 
+                                                   FROM course_instance i 
+                                                   JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+                                                   WHERE study_year = @year
+                                                   """;
     
 }
