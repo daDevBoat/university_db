@@ -24,7 +24,8 @@ public static class CommandLineInterpreter
             if (command == "exit" || command == "quit" || command == "q")
             {
                 Console.WriteLine("Exiting...");
-                break;
+                commandController.Dispose();
+                return;
             }
 
             if (command == "find" && args?.Length > 2)
@@ -78,6 +79,36 @@ public static class CommandLineInterpreter
                     }
                 }
             }
+
+            if (command == "update" && args?.Length > 2)
+            {
+                if (args[0] == "course")
+                {
+                    int instanceId;
+                    if (!int.TryParse(args[1], out instanceId))
+                    {
+                        Console.WriteLine("Write an integer for the instance ID");
+                        continue;
+                    }
+
+                    if (args[2] == "num_students")
+                    {
+                        int numStudents;
+                        if (!int.TryParse(args[3], out numStudents))
+                        {
+                            Console.WriteLine("Write an integer for the number of students");
+                            continue;
+                        }
+
+                        if (!commandController.UpdateNumStudentsById(instanceId, numStudents))
+                        {
+                            Console.WriteLine("Updated failed");
+                        }
+                        continue;
+                    }
+                }
+            }
+            
             Console.WriteLine("Write a valid command. To see a list of valid commands write: help");
         }
     }

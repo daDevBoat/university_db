@@ -6,6 +6,7 @@ using System.IO;
 public class UniversityDAO : IDisposable
 {
     private NpgsqlConnection _connection = null!;
+    private NpgsqlTransaction? _transaction;
 
     public UniversityDAO()
     {
@@ -32,9 +33,74 @@ public class UniversityDAO : IDisposable
     
     public NpgsqlConnection GetConnection() => _connection;
 
+    public void StartTransaction()
+    {
+        if (_transaction != null)
+        {
+            Console.WriteLine("Current transaction already started");
+            return;
+        }
+
+        try
+        {
+            _transaction = _connection.BeginTransaction();
+        }
+        catch (NpgsqlException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+    }
+    
+    
+    public void CommitTransaction()
+    {
+        if (_transaction == null)
+        {
+            Console.WriteLine("No transaction is started");
+            return;
+        }
+
+        try
+        {
+            _transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            _transaction?.Rollback();
+        }
+        finally
+        {
+            _transaction?.Dispose();
+            _transaction = null;
+        }
+    }
+
+    public void RollBackTransaction()
+    {
+        if (_transaction == null)
+        {
+            Console.WriteLine("No transaction is started");
+            return;
+        }
+
+        try
+        {
+            _transaction.Rollback();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        finally
+        {
+            _transaction?.Dispose();
+            _transaction = null;
+        }
+    }
+    
     public void Dispose()
     {
-        _connection?.Close();
         _connection?.Dispose();
     }
     
@@ -43,9 +109,18 @@ public class UniversityDAO : IDisposable
         List<TeachingActivity> activities = new List<TeachingActivity>();
         try
         {
-            using var selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection);
+            NpgsqlCommand selectCommand;
+            if (_transaction == null)
+            {
+                selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection);
+            }
+            else
+            {
+                selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection, _transaction);
+            }
+            
             using var reader = selectCommand.ExecuteReader();
-
+            
             while (reader.Read())
             {
                 int teachingActivityId = reader.GetInt32(0);
@@ -54,7 +129,7 @@ public class UniversityDAO : IDisposable
 
                 activities.Add(new TeachingActivity(teachingActivityId, teachingActivityName, factor));
             }
-
+            selectCommand.Dispose();
         }
         catch (NpgsqlException ex)
         {
@@ -67,11 +142,21 @@ public class UniversityDAO : IDisposable
     {
         try
         {
+            NpgsqlCommand selectInstanceCmd;
+            /* Deciding if it is in need of not commiting (method used as part of update) */
+            if (_transaction == null)
+            {
+                selectInstanceCmd = new NpgsqlCommand(Statements.FindCourseInstanceById, _connection);
+            }
+            else
+            {
+                selectInstanceCmd = new NpgsqlCommand(Statements.FindCourseInstanceByIdForUpdate, _connection, _transaction);
+            }
+            
             /* SELECTING the course instance */
-            using var selectInstanceCmd = new NpgsqlCommand(Statements.FindCourseInstanceById, _connection);
             selectInstanceCmd.Parameters.AddWithValue("@id", instanceId);
             using var reader = selectInstanceCmd.ExecuteReader();
-
+            
             if (!reader.Read()) return null;
             
             /* Creating the course object */
@@ -84,7 +169,7 @@ public class UniversityDAO : IDisposable
                 reader.GetString(reader.GetOrdinal("study_period")),
                 reader.GetFloat(reader.GetOrdinal("hp"))
             );
-            reader.Close();
+            selectInstanceCmd.Dispose();
             return course;
         }
         catch (NpgsqlException ex)
@@ -92,6 +177,7 @@ public class UniversityDAO : IDisposable
             Console.WriteLine(ex.Message);
             return null;
         }
+        
     }
 
     
@@ -118,8 +204,6 @@ public class UniversityDAO : IDisposable
                 );
                 courses.Add(course);
             }
-            
-            reader.Close();
             return courses;
         }
         catch (NpgsqlException ex)
@@ -128,20 +212,41 @@ public class UniversityDAO : IDisposable
             return null;
         }
     }
-    
-    //public 
+
+    public bool UpdateCourseByInstanceId(Course course)
+    {
+        /* The try-catch is handled in the controller */
+        /* Deciding if it is in need of not commiting (method used as part of update) */
+        if (_transaction == null)
+        {
+            Console.WriteLine("Transaction not started for update");
+            return false;
+        }
+            
+        /* UPDATING the course instance */
+        using var updateInstanceCmd = new NpgsqlCommand(Statements.UpdateNumStudentsById, _connection, _transaction);
+        updateInstanceCmd.Parameters.AddWithValue("@id", course.InstanceId);
+        updateInstanceCmd.Parameters.AddWithValue("@num_students", course.NumStudents);
+        updateInstanceCmd.ExecuteNonQuery();
+        return true;
+    }
 
    
 }
 
 static class Statements
 { 
-    //public const string FindCourseLayoutById = "SELECT * FROM course_layout WHERE course_layout_id = @id";
     public const string FindCourseInstanceById = """
                                                  SELECT * 
                                                  FROM course_instance i 
                                                  JOIN course_layout l ON l.course_layout_id = i.course_layout_id 
                                                  WHERE instance_id = @id
+                                                 """;
+    public const string FindCourseInstanceByIdForUpdate = """
+                                                 SELECT * 
+                                                 FROM course_instance i 
+                                                 JOIN course_layout l ON l.course_layout_id = i.course_layout_id 
+                                                 WHERE instance_id = @id FOR UPDATE
                                                  """;
     public const string FindCourseInstanceByYear = """
                                                    SELECT * 
@@ -149,5 +254,12 @@ static class Statements
                                                    JOIN course_layout l ON l.course_layout_id = i.course_layout_id
                                                    WHERE study_year = @year
                                                    """;
-    
+    public const string UpdateNumStudentsById = """
+                                                UPDATE course_instance
+                                                SET
+                                                    num_students = @num_students
+                                                WHERE instance_id = @id
+                                                """;
+
+
 }

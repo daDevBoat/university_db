@@ -143,12 +143,12 @@ AFTER UPDATE ON course_instance
 FOR EACH ROW
 EXECUTE FUNCTION calculate_exam_admin_hours(TRUE);
 
-CREATE TRIGGER min_max_students_triger
-BEFORE INSERT ON course_instance
+CREATE TRIGGER min_max_students_trigger
+BEFORE INSERT OR UPDATE ON course_instance
 FOR EACH ROW
 EXECUTE FUNCTION min_max_students_check();
 
 CREATE TRIGGER planned_activity_limit_trigger
-BEFORE INSERT ON employee_planned_activity
+BEFORE INSERT OR UPDATE ON employee_planned_activity
 FOR EACH ROW
 EXECUTE FUNCTION planned_activity_limit_check();

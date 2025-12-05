@@ -6,9 +6,10 @@ namespace UniversityDBApp.controller;
 public class Controller
 {
     private UniversityDAO _uniDb = new UniversityDAO();
-    public Controller()
+
+    public void Dispose()
     {
-        
+        _uniDb.Dispose();
     }
 
     public List<TeachingActivity> FindAllTeachingActivities()
@@ -50,6 +51,29 @@ public class Controller
             Console.WriteLine(ex.Message);
         }
         return null;
+    }
+
+    public bool UpdateNumStudentsById(int instanceId, int newNumStudents)
+    {
+        bool completed = false;
+        try
+        {
+            _uniDb.StartTransaction();
+            Course? course = _uniDb.FindCourseByInstanceId(instanceId);
+            
+            if (course == null) return completed;
+            
+            course.NumStudents = newNumStudents;
+            completed = _uniDb.UpdateCourseByInstanceId(course);
+            _uniDb.CommitTransaction();
+        }
+        catch (NpgsqlException ex)
+        {
+            Console.WriteLine(ex.Message);
+            _uniDb.RollBackTransaction();
+            Console.WriteLine("Update was rolled back");
+        }
+        return completed;
     }
 }
 
