@@ -1,14 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "GUJO1sJOWHY=",
+  "dgSpecHash": "G5TY4cLlE5A=",
   "success": true,
   "projectFilePath": "C:\\Users\\Elias\\Desktop\\Data_Storage_Paradigms\\Project\\university_db\\UniversityDBApp\\UniversityDBApp.csproj",
-  "expectedPackageFiles": [
-    "C:\\Users\\Elias\\.nuget\\packages\\consoletables\\2.7.0\\consoletables.2.7.0.nupkg.sha512",
-    "C:\\Users\\Elias\\.nuget\\packages\\microsoft.extensions.dependencyinjection.abstractions\\10.0.0\\microsoft.extensions.dependencyinjection.abstractions.10.0.0.nupkg.sha512",
-    "C:\\Users\\Elias\\.nuget\\packages\\microsoft.extensions.logging.abstractions\\10.0.0\\microsoft.extensions.logging.abstractions.10.0.0.nupkg.sha512",
-    "C:\\Users\\Elias\\.nuget\\packages\\npgsql\\10.0.0\\npgsql.10.0.0.nupkg.sha512",
-    "C:\\Users\\Elias\\.nuget\\packages\\wcwidth\\1.0.0\\wcwidth.1.0.0.nupkg.sha512"
-  ],
+  "expectedPackageFiles": [],
   "logs": []
 }
