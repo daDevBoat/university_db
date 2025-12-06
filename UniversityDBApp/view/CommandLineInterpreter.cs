@@ -28,15 +28,15 @@ public static class CommandLineInterpreter
                 return;
             }
 
-            if (command == "find" && args?.Length > 2)
+            if (command == "find" && args?.Length > 1)
             {
-                if (args[0] == "teaching_activity")
+                if (args[0] == "teaching_activity" && args?.Length > 2)
                 {
                     Display.TeachingActivities(commandController.FindAllTeachingActivities());
                     continue;
                 }
 
-                if (args[0] == "course")
+                if (args[0] == "course" && args?.Length > 2)
                 {
                     if (args[1] == "id")
                     {
@@ -58,7 +58,7 @@ public static class CommandLineInterpreter
                         continue;
                     }
 
-                    if (args[1] == "year")
+                    if (args[1] == "year" && args?.Length > 2)
                     {
                         int year;
                         if (!int.TryParse(args[2], out year))
@@ -77,6 +77,26 @@ public static class CommandLineInterpreter
                         Display.Courses(courses);
                         continue;
                     }
+                }
+
+                if (args[0] == "cost" && args?.Length > 1)
+                {
+                    //Console.WriteLine("Hei");
+                    int instanceId;
+                    if (!int.TryParse(args[1], out instanceId))
+                    {
+                        Console.WriteLine("Write an integer for the instance ID");
+                        continue;
+                    }
+
+                    TeachingCost? cost = commandController.CalculateTeachingCost(instanceId);
+                    if (cost == null)
+                    {
+                        Console.WriteLine($"No courses found to calculate cost with id: {instanceId}");
+                        continue;
+                    }
+                    Display.TeachingCost(cost);
+                    continue;
                 }
             }
 
@@ -137,5 +157,10 @@ static class Display
             course.AddRow(table);
         }
         table.Write();
+    }
+    
+    public static void TeachingCost(TeachingCost cost)
+    {
+        Console.WriteLine(cost.ToString());
     }
 }

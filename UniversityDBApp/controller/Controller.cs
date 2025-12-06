@@ -75,5 +75,23 @@ public class Controller
         }
         return completed;
     }
+
+    public TeachingCost? CalculateTeachingCost(int instanceId)
+    {
+        try
+        {
+            _uniDb.StartTransaction();
+            Course? course = _uniDb.FindCourseByInstanceId(instanceId);
+            if (course == null) return null;
+            TeachingCost? cost = _uniDb.CalculateTeachingCost(course);
+            _uniDb.CommitTransaction();
+            return cost;
+        }
+        catch (NpgsqlException ex)
+        {
+            _uniDb.RollBackTransaction();
+            throw;
+        }
+    }
 }
 

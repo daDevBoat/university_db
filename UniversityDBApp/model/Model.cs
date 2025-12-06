@@ -59,3 +59,29 @@ public class Course
         table.AddRow(this.InstanceId, this.CourseCode, this.CourseName, this.NumStudents, this.StudyYear, this.StudyPeriod, this.Hp);
     }
 }
+
+public class TeachingCost
+{
+    public int InstanceId { get; }
+    public string CourseCode { get; }
+    public string StudyPeriod { get; }
+    public float PlannedCosts { get; }
+    public float ActualCosts { get; }
+
+    public TeachingCost(int instanceId, string courseCode, string studyPeriod, float plannedCosts, float actualCosts)
+    {
+        this.InstanceId = instanceId;
+        this.CourseCode = courseCode;
+        this.StudyPeriod = studyPeriod;
+        this.PlannedCosts = plannedCosts;
+        this.ActualCosts = actualCosts;
+    }
+    
+    public override string ToString()
+    {
+        var table = new ConsoleTable("course code", "instance id", "study period", "planned costs", "actual costs");
+        table.AddRow(this.CourseCode, this.InstanceId, this.StudyPeriod, this.PlannedCosts, this.ActualCosts);
+        return table.ToString();
+    }
+    
+} 

@@ -1,4 +1,5 @@
-﻿using UniversityDBApp.model;
+﻿using System.Net;
+using UniversityDBApp.model;
 namespace UniversityDBApp.integration;
 using Npgsql;
 using System.IO;
@@ -231,6 +232,39 @@ public class UniversityDAO : IDisposable
         return true;
     }
 
+    public TeachingCost? CalculateTeachingCost(Course course)
+    {
+        try
+        {
+            if (_transaction == null)
+            {
+                Console.WriteLine("Transaction not started for update");
+                return null;
+            }
+            
+            /* finding the cost using the cost query */
+            using var costCmd = new NpgsqlCommand(Statements.CostCalculationById, _connection, _transaction);
+            costCmd.Parameters.AddWithValue("@id", course.InstanceId);
+            costCmd.Parameters.AddWithValue("@year", course.StudyYear);
+            costCmd.Parameters.AddWithValue("@period", course.StudyPeriod);
+            using var reader = costCmd.ExecuteReader();
+
+            if (!reader.Read()) return null;
+
+            TeachingCost cost = new TeachingCost(
+                course.InstanceId,
+                course.CourseCode,
+                course.StudyPeriod,
+                reader.GetFloat(reader.GetOrdinal("planned_costs")),
+                reader.GetFloat(reader.GetOrdinal("actual_costs"))
+            );
+            return cost;
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
    
 }
 
@@ -261,5 +295,67 @@ static class Statements
                                                 WHERE instance_id = @id
                                                 """;
 
-
+    public const string CostCalculationById = """
+                                              WITH salaries AS (
+                                                  SELECT DISTINCT ON (s.employement_id)
+                                                  s.employement_id, s.year, s.period, s.salary
+                                                  FROM salary_history s 
+                                                  WHERE 
+                                                      CASE 
+                                                          WHEN s.year = @year THEN s.period <= @period ::period_enum
+                                                          WHEN s.year < @year THEN TRUE
+                                                          ELSE FALSE
+                                                      END
+                                                  ORDER BY s.employement_id ASC, s.year DESC, s.period DESC
+                                              ), 
+                                              average_salary AS (
+                                                  SELECT AVG(salaries.salary) AS salary FROM salaries
+                                              ),
+                                              planned_costs AS (
+                                                  SELECT 
+                                                      f.lecture_cost + f.seminar_cost + f.lab_cost + f.tutorial_cost + f.other_cost + f.exam_cost + f.admin_cost AS total_cost
+                                                  FROM (
+                                                      SELECT 
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS lecture_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS seminar_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS lab_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS tutorial_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS other_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS exam_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS admin_cost
+                                                  FROM course_instance i
+                                                  JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+                                                  JOIN planned_activity pa ON pa.instance_id = i.instance_id
+                                                  JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+                                                  JOIN average_salary avg ON TRUE
+                                                  WHERE i.study_year = @year AND i.instance_id = @id) AS f
+                                              )
+                                              SELECT fo.course_code, fo.instance_id, fo.study_period, ROUND(pc.total_cost) AS planned_costs, ROUND(fo.total_cost) AS actual_costs
+                                              FROM (
+                                                  SELECT 
+                                                      fi.course_code, fi.instance_id, fi.study_period,
+                                                      fi.lecture_cost + fi.seminar_cost + fi.lab_cost + fi.tutorial_cost + fi.other_cost + fi.exam_cost + fi.admin_cost AS total_cost
+                                                  FROM (
+                                                      SELECT 
+                                                          l.course_code, i.instance_id, l.study_period,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS lecture_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS seminar_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS lab_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS tutorial_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS other_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS exam_cost,
+                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS admin_cost
+                                                      FROM course_instance i 
+                                                      JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+                                                      JOIN planned_activity pa ON pa.instance_id = i.instance_id
+                                                      JOIN employee_planned_activity epa ON epa.planned_activity_id = pa.planned_activity_id
+                                                      JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+                                                      JOIN employee e ON e.employement_id = epa.employement_id
+                                                      JOIN job_title j ON j.job_title_id = e.job_title_id
+                                                      JOIN person p ON p.person_id = e.person_id
+                                                      JOIN salaries s ON s.employement_id = e.employement_id
+                                                      WHERE i.study_year = @year AND i.instance_id = @id
+                                                      GROUP BY l.course_code, i.instance_id, l.study_period) AS fi) AS fo
+                                              JOIN planned_costs pc ON TRUE 
+                                              """;
 }

@@ -20,3 +20,4 @@ C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDB
 C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\obj\Debug\net10.0\Universi.10EF68BC.Up2Date
 C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\bin\Debug\net10.0\ConsoleTables.dll
 C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\bin\Debug\net10.0\Wcwidth.dll
+C:\Users\Elias\Desktop\Data_Storage_Paradigms\Project\university_db\UniversityDBApp\bin\Debug\net10.0\integration\cost_calculation_query.txt
