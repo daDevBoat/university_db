@@ -93,3 +93,141 @@ FROM (
         i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int
     GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, teacher_name) AS f
 ORDER BY f.study_period ASC;
+
+
+
+MORE TEST QUERIES FOR PART 3
+------------------------------------------------------
+
+
+/*
+Views used for application part
+--------------------------------------------------
+*/
+
+/* Calculating average salary for a teacher based on most recent salary */
+CREATE OR REPLACE VIEW average_teacher_salary AS
+SELECT AVG(f.salary)
+FROM (
+SELECT DISTINCT ON (s.employement_id)
+    s.employement_id, s.year, s.period, s.salary
+FROM salary_history s 
+ORDER BY s.employement_id ASC, s.year DESC, s.period DESC) as f;
+
+
+WITH salaries AS (
+    SELECT DISTINCT ON (s.employement_id)
+    s.employement_id, s.year, s.period, s.salary
+    FROM salary_history s 
+    WHERE 
+        CASE 
+            WHEN s.year = 2025 THEN s.period <= '4'
+            WHEN s.year < 2025 THEN TRUE
+            ELSE FALSE
+        END
+    ORDER BY s.employement_id ASC, s.year DESC, s.period DESC
+), 
+average_salary AS (
+    SELECT AVG(salaries.salary) AS salary FROM salaries
+),
+planned_costs AS (
+    SELECT 
+        f.lecture_cost + f.seminar_cost + f.lab_cost + f.tutorial_cost + f.other_cost + f.exam_cost + f.admin_cost AS total_cost
+    FROM (
+        SELECT 
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS lecture_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS seminar_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS lab_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS tutorial_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS other_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS exam_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS admin_cost
+    FROM course_instance i
+    JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+    JOIN planned_activity pa ON pa.instance_id = i.instance_id
+    JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+    JOIN average_salary avg ON TRUE
+    WHERE i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int AND i.instance_id = 102) AS f
+)
+SELECT fo.course_code, fo.instance_id, fo.study_period, pc.total_cost AS planned_costs, fo.total_cost AS actual_costs
+FROM (
+    SELECT 
+        fi.course_code, fi.instance_id, fi.study_period,
+        fi.lecture_cost + fi.seminar_cost + fi.lab_cost + fi.tutorial_cost + fi.other_cost + fi.exam_cost + fi.admin_cost AS total_cost
+    FROM (
+        SELECT 
+            l.course_code, i.instance_id, l.study_period,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS lecture_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS seminar_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS lab_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS tutorial_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS other_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS exam_cost,
+            SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS admin_cost
+        FROM course_instance i 
+        JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+        JOIN planned_activity pa ON pa.instance_id = i.instance_id
+        JOIN employee_planned_activity epa ON epa.planned_activity_id = pa.planned_activity_id
+        JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+        JOIN employee e ON e.employement_id = epa.employement_id
+        JOIN job_title j ON j.job_title_id = e.job_title_id
+        JOIN person p ON p.person_id = e.person_id
+        JOIN salaries s ON s.employement_id = e.employement_id
+        WHERE i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int AND i.instance_id = 102
+        GROUP BY l.course_code, i.instance_id, l.study_period) AS fi) AS fo
+JOIN planned_costs pc ON TRUE;
+
+SELECT DISTINCT ON (s.employement_id)
+s.employement_id, s.year, s.period, s.salary
+FROM salary_history s 
+WHERE 
+    CASE 
+        WHEN s.year = 2022 THEN s.period <= '4'
+        WHEN s.year < 2022 THEN TRUE
+    END
+ORDER BY s.employement_id ASC, s.year DESC, s.period DESC;
+
+SELECT * FROM salary_history ORDER BY employement_id;
+
+
+
+/* TESTING */
+
+SELECT 
+    f.course_code, f.instance_id, f.hp, f.study_period, f.study_year, f.num_students, f.lecture_hours, f.seminar_hours, f.lab_hours, f.tutorial_hours, f.other_hours, f.exam_hours, f.admin_hours,
+    f.lecture_hours + f.seminar_hours + f.lab_hours + f.tutorial_hours + f.other_hours + f.exam_hours + f.admin_hours AS total_hours
+FROM (
+    SELECT 
+        l.course_code, i.instance_id, l.hp, l.study_period, i.study_year, i.num_students,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS lecture_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS seminar_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS lab_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS tutorial_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS other_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS exam_hours,
+        SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((pa.planned_hours * ta.factor)::numeric, 2) END, 0)) AS admin_hours
+    FROM course_instance i
+    JOIN course_layout l ON l.course_layout_id = i.course_layout_id
+    JOIN planned_activity pa ON pa.instance_id = i.instance_id
+    JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+    WHERE i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int AND i.instance_id = 102
+    GROUP BY l.course_code, i.instance_id, l.hp, l.study_period, i.study_year, i.num_students) AS f
+ORDER BY f.study_period;
+
+
+WITH salaries AS (
+    SELECT DISTINCT ON (s.employement_id)
+    s.employement_id, s.year, s.period, s.salary
+    FROM salary_history s 
+    WHERE 
+        CASE 
+            WHEN s.year = 2025 THEN s.period <= '4'
+            WHEN s.year < 2025 THEN TRUE
+            ELSE FALSE
+        END
+    ORDER BY s.employement_id ASC, s.year DESC, s.period DESC
+), 
+average_salary AS (
+    SELECT AVG(salaries.salary) FROM salaries
+)
+SELECT * FROM average_salary;
