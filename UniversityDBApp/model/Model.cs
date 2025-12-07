@@ -2,28 +2,6 @@
 using ConsoleTables;
 namespace UniversityDBApp.model;
 
-public class TeachingActivity
-{
-    public int TeachingActivityId { get; }
-    public string TeachingActivityName { get; }
-    public float Factor { get; }
-
-    public TeachingActivity(int teachingActivityId, string teachingActivityName, float factor)
-    {
-        this.TeachingActivityId = teachingActivityId;
-        this.TeachingActivityName = teachingActivityName;
-        this.Factor = factor;
-    }
-
-    public override string ToString()
-    {
-        return $"""
-                {this.TeachingActivityId.ToString().PadRight(5)}| 
-                {this.TeachingActivityName.PadRight(20)}| 
-                {this.Factor.ToString(CultureInfo.InvariantCulture)}
-                """;
-    }
-}
 
 /* Merges course instance and layout into one class */
 public class Course
@@ -35,6 +13,7 @@ public class Course
     public int StudyYear { get; }
     public string StudyPeriod { get; }
     public float Hp { get; set;  }
+    public List<Activity>? TeachingActivities { get; set;  }
 
     public Course(int instanceId, string courseCode, string courseName, int numStudents, int studyYear, string studyPeriod, float hp)
     {
@@ -45,6 +24,7 @@ public class Course
         this.StudyYear = studyYear;
         this.StudyPeriod = studyPeriod;
         this.Hp = hp;
+        this.TeachingActivities = null;
     }
 
     public override string ToString()
@@ -83,5 +63,63 @@ public class TeachingCost
         table.AddRow(this.CourseCode, this.InstanceId, this.StudyPeriod, this.PlannedCosts, this.ActualCosts);
         return table.ToString();
     }
+}
+
+public class Activity
+{
+    public int ActivityId { get; }
+    public string ActivityName { get; }
+    public float PlannedHours { get; set; }
+    public float Factor { get;}
+
+    public Activity(int activityId, string activityName, float plannedHours, float factor)
+    {
+        this.ActivityId = activityId;
+        this.ActivityName = activityName;
+        this.PlannedHours = plannedHours;
+        this.Factor = factor;
+    }
     
-} 
+    public void AddRow(ConsoleTable table)
+    {
+        table.AddRow(this.ActivityId, this.ActivityName, this.PlannedHours, this.Factor);
+    }
+}
+
+public class Teacher
+{
+    public int EmployementId { get; }
+    public string FirstName { get; }
+    public string LastName { get; }
+    public string JobTitle { get; set; }
+    public int DepartmentId { get; set; }
+    public int SupervisorId { get; set; }
+    public List<Activity> TeachingActivities { get; }
+
+    public Teacher(int employementId, string firstName, string lastName, string jobTitle, int departmentId, int supervisorId)
+    {
+        this.EmployementId = employementId;
+        this.FirstName = firstName;
+        this.LastName = lastName;
+        this.JobTitle = jobTitle;
+        this.DepartmentId = departmentId;
+        this.SupervisorId = supervisorId;
+        this.TeachingActivities = new List<Activity>();
+    }
+
+    public Activity? GetActivity(string activityName)
+    {
+        foreach (var activity in this.TeachingActivities) 
+        {
+            if (activity.ActivityName == activityName) return activity;
+        }
+        return null;
+    }
+    
+    public override string ToString()
+    {
+        var table = new ConsoleTable("employement id", "first name", "last name", "job title", "department id", "supervisor id");
+        table.AddRow(this.EmployementId, this.FirstName, this.LastName, this.JobTitle, this.DepartmentId, this.SupervisorId);
+        return table.ToString();
+    }
+}

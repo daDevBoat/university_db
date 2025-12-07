@@ -105,39 +105,7 @@ public class UniversityDAO : IDisposable
         _connection?.Dispose();
     }
     
-    public List<TeachingActivity> FindAllTeachingActivities()
-    {
-        List<TeachingActivity> activities = new List<TeachingActivity>();
-        try
-        {
-            NpgsqlCommand selectCommand;
-            if (_transaction == null)
-            {
-                selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection);
-            }
-            else
-            {
-                selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection, _transaction);
-            }
-            
-            using var reader = selectCommand.ExecuteReader();
-            
-            while (reader.Read())
-            {
-                int teachingActivityId = reader.GetInt32(0);
-                string teachingActivityName = reader.GetString(1);
-                float factor = reader.GetFloat(2);
-
-                activities.Add(new TeachingActivity(teachingActivityId, teachingActivityName, factor));
-            }
-            selectCommand.Dispose();
-        }
-        catch (NpgsqlException ex)
-        {
-            Console.WriteLine(ex.Message);
-        }
-        return activities;
-    }
+    
 
     public Course? FindCourseByInstanceId(int instanceId)
     {
@@ -191,7 +159,10 @@ public class UniversityDAO : IDisposable
             selectInstanceCmd.Parameters.AddWithValue("@year", year);
             using var reader = selectInstanceCmd.ExecuteReader();
             List<Course> courses = new List<Course>();
-            while (reader.Read())
+            
+            if (!reader.Read()) return null;
+            
+            do
             {
                 /* Creating the course object */
                 Course course = new Course(
@@ -204,7 +175,7 @@ public class UniversityDAO : IDisposable
                     reader.GetFloat(reader.GetOrdinal("hp"))
                 );
                 courses.Add(course);
-            }
+            } while (reader.Read());
             return courses;
         }
         catch (NpgsqlException ex)
@@ -265,8 +236,128 @@ public class UniversityDAO : IDisposable
             throw;
         }
     }
+
+    public List<Activity>? FindActivitiesByCourse(Course course)
+    {
+        try
+        {
+            NpgsqlCommand selectActivitiesCmd;
+            if (_transaction == null)
+            {
+                selectActivitiesCmd = new NpgsqlCommand(Statements.FindActivitiesByInstanceId, _connection);
+            }
+            else
+            {
+                selectActivitiesCmd = new NpgsqlCommand(Statements.FindActivitiesByInstanceId, _connection, _transaction);
+            }
+
+            selectActivitiesCmd.Parameters.AddWithValue("@id", course.InstanceId);
+            using var reader = selectActivitiesCmd.ExecuteReader();
+            
+            if (!reader.Read()) return null;
+
+            List<Activity> activities = new List<Activity>();
+            do
+            {
+                Activity activity = new Activity(
+                    reader.GetInt32(reader.GetOrdinal("planned_activity_id")),
+                    reader.GetString(reader.GetOrdinal("activity_name")),
+                    reader.GetFloat(reader.GetOrdinal("planned_hours")),
+                    reader.GetFloat(reader.GetOrdinal("factor"))
+                );
+                activities.Add(activity);
+            } while (reader.Read());
+            
+            selectActivitiesCmd.Dispose();
+            return activities;
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+    }
+    
+    public List<Activity>? FindActivitiesByTeacher(Teacher teacher)
+    {
+        try
+        {
+            NpgsqlCommand selectActivitiesCmd;
+            if (_transaction == null)
+            {
+                selectActivitiesCmd = new NpgsqlCommand(Statements.FindActivitiesByEmployementId, _connection);
+            }
+            else
+            {
+                selectActivitiesCmd = new NpgsqlCommand(Statements.FindActivitiesByEmployementId, _connection, _transaction);
+            }
+
+            selectActivitiesCmd.Parameters.AddWithValue("@id", teacher.EmployementId);
+            using var reader = selectActivitiesCmd.ExecuteReader();
+            
+            if (!reader.Read()) return null;
+
+            List<Activity> activities = new List<Activity>();
+            do
+            {
+                Activity activity = new Activity(
+                    reader.GetInt32(reader.GetOrdinal("planned_activity_id")),
+                    reader.GetString(reader.GetOrdinal("activity_name")),
+                    reader.GetFloat(reader.GetOrdinal("planned_hours")),
+                    reader.GetFloat(reader.GetOrdinal("factor"))
+                );
+                activities.Add(activity);
+            } while (reader.Read());
+            
+            selectActivitiesCmd.Dispose();
+            return activities;
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+    }
+    
+    public Teacher? FindTeacherByEmployementId(int employementId)
+    {
+        try
+        {
+            NpgsqlCommand selectTeacherCmd;
+            if (_transaction == null)
+            {
+                selectTeacherCmd = new NpgsqlCommand(Statements.FindTeacherByEmployementId, _connection);
+            }
+            else
+            {
+                selectTeacherCmd = new NpgsqlCommand(Statements.FindTeacherByEmployementId, _connection, _transaction);
+            }
+
+            selectTeacherCmd.Parameters.AddWithValue("@id", employementId);
+            using var reader = selectTeacherCmd.ExecuteReader();
+
+            if (!reader.Read()) return null;
+
+            Teacher teacher = new Teacher(
+                reader.GetInt32(reader.GetOrdinal("employement_id")),
+                reader.GetString(reader.GetOrdinal("first_name")),
+                reader.GetString(reader.GetOrdinal("last_name")),
+                reader.GetString(reader.GetOrdinal("job_title")),
+                reader.GetInt32(reader.GetOrdinal("department_id")),
+                reader.GetInt32(reader.GetOrdinal("supervisor_id"))
+            );
+
+            selectTeacherCmd.Dispose();
+            return teacher;
+
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+    }
+    
    
 }
+
 
 static class Statements
 { 
@@ -294,7 +385,28 @@ static class Statements
                                                     num_students = @num_students
                                                 WHERE instance_id = @id
                                                 """;
-
+    public const string FindActivitiesByInstanceId = """
+                                                     SELECT pa.planned_activity_id, ta.activity_name, pa.planned_hours, ta.factor
+                                                     FROM course_instance i
+                                                     JOIN planned_activity pa ON pa.instance_id = i.instance_id
+                                                     JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+                                                     WHERE i.instance_id = @id
+                                                     """;
+    public const string FindActivitiesByEmployementId = """
+                                                     SELECT pa.planned_activity_id, ta.activity_name, pa.planned_hours, ta.factor
+                                                     FROM employee e
+                                                     JOIN employee_planned_activity epa ON epa.employement_id = e.employement_id
+                                                     JOIN planned_activity pa ON pa.planned_activity_id = epa.planned_activity_id
+                                                     JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+                                                     WHERE e.employement_id = @id
+                                                     """;
+    public const string FindTeacherByEmployementId = """
+                                                     SELECT e.employement_id, p.first_name, p.last_name, j.job_title, e.department_id, e.supervisor_id
+                                                     FROM employee e
+                                                     JOIN person p ON p.person_id = e.person_id
+                                                     JOIN job_title j ON j.job_title_id = e.job_title_id
+                                                     WHERE e.employement_id = @id
+                                                     """;
     public const string CostCalculationById = """
                                               WITH salaries AS (
                                                   SELECT DISTINCT ON (s.employement_id)
@@ -359,3 +471,41 @@ static class Statements
                                               JOIN planned_costs pc ON TRUE 
                                               """;
 }
+
+
+/* 
+CODE GRAVEYARD:
+public List<TeachingActivity> FindAllTeachingActivities()
+    {
+        List<TeachingActivity> activities = new List<TeachingActivity>();
+        try
+        {
+            NpgsqlCommand selectCommand;
+            if (_transaction == null)
+            {
+                selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection);
+            }
+            else
+            {
+                selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection, _transaction);
+            }
+            
+            using var reader = selectCommand.ExecuteReader();
+            
+            while (reader.Read())
+            {
+                int teachingActivityId = reader.GetInt32(0);
+                string teachingActivityName = reader.GetString(1);
+                float factor = reader.GetFloat(2);
+
+                activities.Add(new TeachingActivity(teachingActivityId, teachingActivityName, factor));
+            }
+            selectCommand.Dispose();
+        }
+        catch (NpgsqlException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        return activities;
+    }
+*/

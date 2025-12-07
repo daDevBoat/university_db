@@ -30,11 +30,6 @@ public static class CommandLineInterpreter
 
             if (command == "find" && args?.Length > 1)
             {
-                if (args[0] == "teaching_activity" && args?.Length > 2)
-                {
-                    Display.TeachingActivities(commandController.FindAllTeachingActivities());
-                    continue;
-                }
 
                 if (args[0] == "course" && args?.Length > 2)
                 {
@@ -98,6 +93,47 @@ public static class CommandLineInterpreter
                     Display.TeachingCost(cost);
                     continue;
                 }
+
+                if (args[0] == "teacher" && args?.Length > 1)
+                {
+                    int employementID;
+                    if (!int.TryParse(args[1], out employementID))
+                    {
+                        Console.WriteLine("Write an integer for the employement ID");
+                        continue;
+                    }
+                    Teacher? teacher = commandController.FindTeacher(employementID);
+                    if (teacher == null)
+                    {
+                        Console.WriteLine("No teacher found");
+                        continue;
+                    }
+                    Display.Teacher(teacher);
+                    continue;
+                }
+                
+                if (args[0] == "activities" && args?.Length > 2)
+                {
+                    int id;
+                    if (!int.TryParse(args[2], out id))
+                    {
+                        Console.WriteLine("Write an integer for the ID");
+                        continue;
+                    }
+
+                    List<Activity>? activities = null;
+                    if (args[1] == "teacher") activities = commandController.FindActivitiesByEmployementId(id);
+                    else if (args[1] == "course") activities = commandController.FindActivitiesByInstanceId(id);
+                    
+                    if (activities ==  null) 
+                    {
+                        Console.WriteLine("No activities found");
+                        continue;
+                    }
+                    Display.Activities(activities);
+                    continue;
+                    
+                }
             }
 
             if (command == "update" && args?.Length > 2)
@@ -134,33 +170,3 @@ public static class CommandLineInterpreter
     }
 }
 
-static class Display
-{
-    public static void TeachingActivities(List<TeachingActivity> activities)
-    {
-        foreach (var activity in activities)
-        {
-            Console.WriteLine(activity.ToString());
-        }
-    }
-
-    public static void Course(Course course)
-    {
-        Console.WriteLine(course.ToString());
-    }
-    
-    public static void Courses(List<Course> courses)
-    {
-        var table = new ConsoleTable("instance id", "course code", "course name", "num of students", "study year", "study period", "hp");
-        foreach (var course in courses)
-        {
-            course.AddRow(table);
-        }
-        table.Write();
-    }
-    
-    public static void TeachingCost(TeachingCost cost)
-    {
-        Console.WriteLine(cost.ToString());
-    }
-}

@@ -12,20 +12,6 @@ public class Controller
         _uniDb.Dispose();
     }
 
-    public List<TeachingActivity> FindAllTeachingActivities()
-    {
-        List<TeachingActivity> activities = new List<TeachingActivity>();
-        try
-        {
-            activities = _uniDb.FindAllTeachingActivities();
-        }
-        catch (NpgsqlException ex)
-        {
-            Console.WriteLine(ex.Message);
-        }
-        return activities;
-    }
-
     public Course? FindCourseById(int instanceId)
     {
         try
@@ -90,6 +76,55 @@ public class Controller
         catch (NpgsqlException ex)
         {
             _uniDb.RollBackTransaction();
+            throw;
+        }
+    }
+
+    public Teacher? FindTeacher(int employementId)
+    {
+        try
+        {
+            Teacher? teacher = _uniDb.FindTeacherByEmployementId(employementId);
+            return teacher;
+        } catch (NpgsqlException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+        return null;
+    }
+
+    public List<Activity>? FindActivitiesByInstanceId(int instanceId)
+    {
+        try
+        {
+            _uniDb.StartTransaction();
+            Course? course = _uniDb.FindCourseByInstanceId(instanceId);
+            if (course == null) return null;
+            List<Activity>? activities = _uniDb.FindActivitiesByCourse(course);
+            _uniDb.CommitTransaction();
+            return activities;
+        }
+        catch (NpgsqlException ex)
+        {
+            return null;
+            throw;
+        }
+    }
+    
+    public List<Activity>? FindActivitiesByEmployementId(int employementId)
+    {
+        try
+        {
+            _uniDb.StartTransaction();
+            Teacher? teacher = _uniDb.FindTeacherByEmployementId(employementId);
+            if (teacher == null) return null;
+            List<Activity>? activities = _uniDb.FindActivitiesByTeacher(teacher);
+            _uniDb.CommitTransaction();
+            return activities;
+        }
+        catch (NpgsqlException ex)
+        {
+            return null;
             throw;
         }
     }
