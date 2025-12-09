@@ -1,6 +1,7 @@
 ﻿using UniversityDBApp.controller;
 using UniversityDBApp.model;
 using ConsoleTables;
+using UniversityDBApp.view;
 namespace UniversityDBApp.view;
 
 public static class CommandLineInterpreter
@@ -157,10 +158,13 @@ public static class CommandLineInterpreter
                             continue;
                         }
 
-                        if (!commandController.UpdateNumStudentsById(instanceId, numStudents))
+                        commandController.UpdateNumStudentsById(instanceId, numStudents); // TODO error handling
+                        /*
+                        if ()
                         {
                             Console.WriteLine("Updated failed");
                         }
+                        */
                         continue;
                     }
                 }
@@ -219,6 +223,47 @@ public static class CommandLineInterpreter
             }
             
             Console.WriteLine("Write a valid command. To see a list of valid commands write: help");
+        }
+    }
+
+    public static void Run2()
+    {
+        Console.WriteLine("This is the terminal for the University DB Application");
+        Console.WriteLine("Write your commands here and type help for available commands\n");
+        
+
+        while (true)
+        {
+            Console.Write("> ");
+            string[]? input = Console.ReadLine()?.Split(" ");
+            string? command = input?[0];
+            string[]? args = input?.Skip(1).ToArray();
+            
+            if (command == null) continue;
+
+            switch (command)
+            {
+                case "exit":
+                case "quit":
+                    CommandHandler.Exit();
+                    return;
+                case "find" when args?.Length == 3:
+                    CommandHandler.Find(args);
+                    break;
+                case "update" when args?.Length == 4:
+                    CommandHandler.Update(args);
+                    break;
+                case "allocate" when args?.Length == 6:
+                    CommandHandler.Allocate(args);
+                    break;
+                case "deallocate" when args?.Length == 4:
+                    CommandHandler.DeAllocate(args);
+                    break;
+                default:
+                    Console.WriteLine("Write a valid command. To see a list of valid commands write: help");
+                    break;
+            }
+            
         }
     }
 }

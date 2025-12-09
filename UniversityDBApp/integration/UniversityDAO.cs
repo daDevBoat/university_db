@@ -25,11 +25,11 @@ public class UniversityDAO : IDisposable
         {
             _connection = new NpgsqlConnection(connString);
             _connection.Open();
-            Console.WriteLine("Connection successfully established");
+            //Console.WriteLine("Connection successfully established");
         }
-        catch (NpgsqlException ex)
+        catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            throw;
         }
     }
     
@@ -39,7 +39,7 @@ public class UniversityDAO : IDisposable
     {
         if (_transaction != null)
         {
-            Console.WriteLine("Current transaction already started");
+            //TODO Console.WriteLine("Current transaction already started");
             return;
         }
 
@@ -47,9 +47,9 @@ public class UniversityDAO : IDisposable
         {
             _transaction = _connection.BeginTransaction();
         }
-        catch (NpgsqlException ex)
+        catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            throw;
         }
     }
     
@@ -68,8 +68,8 @@ public class UniversityDAO : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
             _transaction?.Rollback();
+            throw;
         }
         finally
         {
@@ -92,7 +92,7 @@ public class UniversityDAO : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            throw;
         }
         finally
         {
@@ -142,10 +142,9 @@ public class UniversityDAO : IDisposable
             selectInstanceCmd.Dispose();
             return course;
         }
-        catch (NpgsqlException ex)
+        catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
-            return null;
+            throw;
         }
         
     }
@@ -179,29 +178,31 @@ public class UniversityDAO : IDisposable
             } while (reader.Read());
             return courses;
         }
-        catch (NpgsqlException ex)
+        catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
-            return null;
+            throw;
         }
     }
 
-    public bool UpdateCourseByInstanceId(Course course)
+    public void UpdateCourseByInstanceId(Course course)
     {
-        /* The try-catch is handled in the controller */
-        /* Deciding if it is in need of not commiting (method used as part of update) */
-        if (_transaction == null)
+        try
         {
-            Console.WriteLine("Transaction not started for update");
-            return false;
+            if (_transaction == null)
+            {
+                //TODO Console.WriteLine("Transaction not started for update");
+            }
+                
+            /* UPDATING the course instance */
+            using var updateInstanceCmd = new NpgsqlCommand(Statements.UpdateNumStudentsById, _connection, _transaction);
+            updateInstanceCmd.Parameters.AddWithValue("@id", course.InstanceId);
+            updateInstanceCmd.Parameters.AddWithValue("@num_students", course.NumStudents);
+            updateInstanceCmd.ExecuteNonQuery();
+        } 
+        catch (Exception ex)
+        {
+            throw;
         }
-            
-        /* UPDATING the course instance */
-        using var updateInstanceCmd = new NpgsqlCommand(Statements.UpdateNumStudentsById, _connection, _transaction);
-        updateInstanceCmd.Parameters.AddWithValue("@id", course.InstanceId);
-        updateInstanceCmd.Parameters.AddWithValue("@num_students", course.NumStudents);
-        updateInstanceCmd.ExecuteNonQuery();
-        return true;
     }
 
     public TeachingCost? CalculateTeachingCost(Course course)
@@ -232,7 +233,7 @@ public class UniversityDAO : IDisposable
             );
             return cost;
         }
-        catch (NpgsqlException ex)
+        catch (Exception ex)
         {
             throw;
         }

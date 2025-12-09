@@ -247,7 +247,7 @@ WITH salaries AS (
     ORDER BY s.employement_id ASC, s.year DESC, s.period DESC
 ), 
 average_salary AS (
-    SELECT AVG(salaries.salary) AS salary FROM salaries
+    ,
 ),
 planned_costs AS (
     SELECT SUM(ROUND(COALESCE(pa.planned_hours * ta.factor * avg.salary, 0))) as total_cost

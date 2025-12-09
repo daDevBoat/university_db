@@ -22,8 +22,9 @@ public class Controller
         catch (NpgsqlException ex)
         {
             Console.WriteLine(ex.Message);
+            Console.WriteLine(ex.SqlState);
+            return null;
         }
-        return null;
     }
 
     public List<Course>? FindCoursesByYear(int year)
@@ -39,18 +40,18 @@ public class Controller
         return null;
     }
 
-    public bool UpdateNumStudentsById(int instanceId, int newNumStudents)
+    public void UpdateNumStudentsById(int instanceId, int newNumStudents)
     {
-        bool completed = false;
+       
         try
         {
             _uniDb.StartTransaction();
             Course? course = _uniDb.FindCourseByInstanceId(instanceId);
-            
-            if (course == null) return completed;
+
+            if (course == null) return; //TODO exception handling
             
             course.NumStudents = newNumStudents;
-            completed = _uniDb.UpdateCourseByInstanceId(course);
+            _uniDb.UpdateCourseByInstanceId(course);
             _uniDb.CommitTransaction();
         }
         catch (NpgsqlException ex)
@@ -59,7 +60,6 @@ public class Controller
             _uniDb.RollBackTransaction();
             Console.WriteLine("Update was rolled back");
         }
-        return completed;
     }
 
     public TeachingCost? CalculateTeachingCost(int instanceId)
