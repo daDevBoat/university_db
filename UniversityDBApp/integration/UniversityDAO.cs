@@ -4,6 +4,7 @@ namespace UniversityDBApp.integration;
 using Npgsql;
 using System.IO;
 
+
 public class UniversityDAO : IDisposable
 {
     private NpgsqlConnection _connection = null!;
@@ -248,7 +249,7 @@ public class UniversityDAO : IDisposable
             }
             else
             {
-                selectActivitiesCmd = new NpgsqlCommand(Statements.FindActivitiesByInstanceId, _connection, _transaction);
+                selectActivitiesCmd = new NpgsqlCommand(Statements.FindActivitiesByInstanceIdForUpdate, _connection, _transaction);
             }
 
             selectActivitiesCmd.Parameters.AddWithValue("@id", course.InstanceId);
@@ -261,6 +262,7 @@ public class UniversityDAO : IDisposable
             {
                 Activity activity = new Activity(
                     reader.GetInt32(reader.GetOrdinal("planned_activity_id")),
+                    reader.GetInt32(reader.GetOrdinal("instance_id")),
                     reader.GetString(reader.GetOrdinal("activity_name")),
                     reader.GetFloat(reader.GetOrdinal("planned_hours")),
                     reader.GetFloat(reader.GetOrdinal("factor"))
@@ -301,8 +303,9 @@ public class UniversityDAO : IDisposable
             {
                 Activity activity = new Activity(
                     reader.GetInt32(reader.GetOrdinal("planned_activity_id")),
+                    reader.GetInt32(reader.GetOrdinal("instance_id")),
                     reader.GetString(reader.GetOrdinal("activity_name")),
-                    reader.GetFloat(reader.GetOrdinal("planned_hours")),
+                    reader.GetFloat(reader.GetOrdinal("allocated_hours")),
                     reader.GetFloat(reader.GetOrdinal("factor"))
                 );
                 activities.Add(activity);
@@ -328,7 +331,7 @@ public class UniversityDAO : IDisposable
             }
             else
             {
-                selectTeacherCmd = new NpgsqlCommand(Statements.FindTeacherByEmployementId, _connection, _transaction);
+                selectTeacherCmd = new NpgsqlCommand(Statements.FindTeacherByEmployementIdForUpdate, _connection, _transaction);
             }
 
             selectTeacherCmd.Parameters.AddWithValue("@id", employementId);
@@ -355,121 +358,69 @@ public class UniversityDAO : IDisposable
         }
     }
     
+    public void DeleteEmployeePlannedActivity(int employementId, int plannedActivityId)
+    {
+        try
+        {
+            using var deleteActivityCmd = new NpgsqlCommand(Statements.DeleteEmployeePlannedActivityById, _connection);
+            deleteActivityCmd.Parameters.AddWithValue("@employement_id", employementId);
+            deleteActivityCmd.Parameters.AddWithValue("@planned_activity_id", plannedActivityId);
+            deleteActivityCmd.ExecuteNonQuery();
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
+
+    public void CreateEmployeePlannedActivity(int employementId, int plannedActivityId, float allocatedHours)
+    {
+        try
+        {
+            using var createActivityCmd = new NpgsqlCommand(Statements.CreateEmployeePlannedActivityById, _connection);
+            createActivityCmd.Parameters.AddWithValue("@employement_id", employementId);
+            createActivityCmd.Parameters.AddWithValue("@planned_activity_id", plannedActivityId);
+            createActivityCmd.Parameters.AddWithValue("@allocated_hours", allocatedHours);
+            createActivityCmd.ExecuteNonQuery();
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
+
+    public void CreateActivityType(string activityName, float factor)
+    {
+        try
+        {
+            using var createActivityTypeCmd = new NpgsqlCommand(Statements.CreateActivityType, _connection);
+            createActivityTypeCmd.Parameters.AddWithValue("@activity_name", activityName);
+            createActivityTypeCmd.Parameters.AddWithValue("@factor", factor);
+            createActivityTypeCmd.ExecuteNonQuery();
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
+    
+    public void CreateActivity(string activityName, int instanceId, float plannedHours)
+    {
+        try
+        {
+            using var createActivityCmd = new NpgsqlCommand(Statements.CreateActivity, _connection);
+            createActivityCmd.Parameters.AddWithValue("@activity_name", activityName);
+            createActivityCmd.Parameters.AddWithValue("@instance_id", instanceId);
+            createActivityCmd.Parameters.AddWithValue("@planned_hours", plannedHours);
+            createActivityCmd.ExecuteNonQuery();
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
+    
    
-}
-
-
-static class Statements
-{ 
-    public const string FindCourseInstanceById = """
-                                                 SELECT * 
-                                                 FROM course_instance i 
-                                                 JOIN course_layout l ON l.course_layout_id = i.course_layout_id 
-                                                 WHERE instance_id = @id
-                                                 """;
-    public const string FindCourseInstanceByIdForUpdate = """
-                                                 SELECT * 
-                                                 FROM course_instance i 
-                                                 JOIN course_layout l ON l.course_layout_id = i.course_layout_id 
-                                                 WHERE instance_id = @id FOR UPDATE
-                                                 """;
-    public const string FindCourseInstanceByYear = """
-                                                   SELECT * 
-                                                   FROM course_instance i 
-                                                   JOIN course_layout l ON l.course_layout_id = i.course_layout_id
-                                                   WHERE study_year = @year
-                                                   """;
-    public const string UpdateNumStudentsById = """
-                                                UPDATE course_instance
-                                                SET
-                                                    num_students = @num_students
-                                                WHERE instance_id = @id
-                                                """;
-    public const string FindActivitiesByInstanceId = """
-                                                     SELECT pa.planned_activity_id, ta.activity_name, pa.planned_hours, ta.factor
-                                                     FROM course_instance i
-                                                     JOIN planned_activity pa ON pa.instance_id = i.instance_id
-                                                     JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
-                                                     WHERE i.instance_id = @id
-                                                     """;
-    public const string FindActivitiesByEmployementId = """
-                                                     SELECT pa.planned_activity_id, ta.activity_name, pa.planned_hours, ta.factor
-                                                     FROM employee e
-                                                     JOIN employee_planned_activity epa ON epa.employement_id = e.employement_id
-                                                     JOIN planned_activity pa ON pa.planned_activity_id = epa.planned_activity_id
-                                                     JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
-                                                     WHERE e.employement_id = @id
-                                                     """;
-    public const string FindTeacherByEmployementId = """
-                                                     SELECT e.employement_id, p.first_name, p.last_name, j.job_title, e.department_id, e.supervisor_id
-                                                     FROM employee e
-                                                     JOIN person p ON p.person_id = e.person_id
-                                                     JOIN job_title j ON j.job_title_id = e.job_title_id
-                                                     WHERE e.employement_id = @id
-                                                     """;
-    public const string CostCalculationById = """
-                                              WITH salaries AS (
-                                                  SELECT DISTINCT ON (s.employement_id)
-                                                  s.employement_id, s.year, s.period, s.salary
-                                                  FROM salary_history s 
-                                                  WHERE 
-                                                      CASE 
-                                                          WHEN s.year = @year THEN s.period <= @period ::period_enum
-                                                          WHEN s.year < @year THEN TRUE
-                                                          ELSE FALSE
-                                                      END
-                                                  ORDER BY s.employement_id ASC, s.year DESC, s.period DESC
-                                              ), 
-                                              average_salary AS (
-                                                  SELECT AVG(salaries.salary) AS salary FROM salaries
-                                              ),
-                                              planned_costs AS (
-                                                  SELECT 
-                                                      f.lecture_cost + f.seminar_cost + f.lab_cost + f.tutorial_cost + f.other_cost + f.exam_cost + f.admin_cost AS total_cost
-                                                  FROM (
-                                                      SELECT 
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS lecture_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS seminar_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS lab_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS tutorial_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS other_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS exam_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((pa.planned_hours * ta.factor * avg.salary)::numeric, 2) END, 0)) AS admin_cost
-                                                  FROM course_instance i
-                                                  JOIN course_layout l ON l.course_layout_id = i.course_layout_id
-                                                  JOIN planned_activity pa ON pa.instance_id = i.instance_id
-                                                  JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
-                                                  JOIN average_salary avg ON TRUE
-                                                  WHERE i.study_year = @year AND i.instance_id = @id) AS f
-                                              )
-                                              SELECT fo.course_code, fo.instance_id, fo.study_period, ROUND(pc.total_cost) AS planned_costs, ROUND(fo.total_cost) AS actual_costs
-                                              FROM (
-                                                  SELECT 
-                                                      fi.course_code, fi.instance_id, fi.study_period,
-                                                      fi.lecture_cost + fi.seminar_cost + fi.lab_cost + fi.tutorial_cost + fi.other_cost + fi.exam_cost + fi.admin_cost AS total_cost
-                                                  FROM (
-                                                      SELECT 
-                                                          l.course_code, i.instance_id, l.study_period,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Lecture' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS lecture_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Seminar' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS seminar_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Lab' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS lab_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Tutorial' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS tutorial_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Other' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS other_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Exam' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS exam_cost,
-                                                          SUM(COALESCE(CASE WHEN ta.activity_name = 'Admin' THEN ROUND((epa.allocated_hours * ta.factor * s.salary)::numeric, 2) END, 0)) AS admin_cost
-                                                      FROM course_instance i 
-                                                      JOIN course_layout l ON l.course_layout_id = i.course_layout_id
-                                                      JOIN planned_activity pa ON pa.instance_id = i.instance_id
-                                                      JOIN employee_planned_activity epa ON epa.planned_activity_id = pa.planned_activity_id
-                                                      JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
-                                                      JOIN employee e ON e.employement_id = epa.employement_id
-                                                      JOIN job_title j ON j.job_title_id = e.job_title_id
-                                                      JOIN person p ON p.person_id = e.person_id
-                                                      JOIN salaries s ON s.employement_id = e.employement_id
-                                                      WHERE i.study_year = @year AND i.instance_id = @id
-                                                      GROUP BY l.course_code, i.instance_id, l.study_period) AS fi) AS fo
-                                              JOIN planned_costs pc ON TRUE 
-                                              """;
 }
 
 

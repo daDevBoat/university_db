@@ -82,3 +82,15 @@ JOIN course_instance i ON i.instance_id = pa.instance_id
 JOIN course_layout l ON l.course_layout_id = i.course_layout_id
 WHERE j.job_title = 'Teacher' AND i.study_year = EXTRACT(YEAR FROM CURRENT_DATE)::int AND l.study_period::char = get_current_period()::char;
 
+
+/*
+
+/* Views for cost calculation */
+
+CREATE OR REPLACE VIEW planned_costs AS
+
+FROM planned_activity pa
+JOIN teaching_activity ta ON ta.teaching_activity_id = pa.teaching_activity_id
+JOIN employee_planned_activity epa ON 
+
+*/

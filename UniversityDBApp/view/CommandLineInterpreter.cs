@@ -130,7 +130,8 @@ public static class CommandLineInterpreter
                         Console.WriteLine("No activities found");
                         continue;
                     }
-                    Display.Activities(activities);
+                    if (args[1] == "teacher") Display.Activities(activities, true);
+                    else if (args[1] == "course") Display.Activities(activities, false);
                     continue;
                     
                 }
@@ -162,6 +163,58 @@ public static class CommandLineInterpreter
                         }
                         continue;
                     }
+                }
+            }
+
+            if ((command == "deallocate" || command == "allocate") && args?.Length > 1)
+            {
+                int employementId, activityId;
+                if (!int.TryParse(args[0], out employementId) ||  !int.TryParse(args[1], out activityId))
+                {
+                    Console.WriteLine("Write an integer for the IDs");
+                    continue;
+                }
+                if (command == "deallocate") commandController.DeleteEPA(employementId, activityId);
+                else
+                {
+                    float allocatedHours;
+                    if (args?.Length < 3 || !float.TryParse(args[2], out allocatedHours))
+                    {
+                        Console.WriteLine("Write an integer for the allocated hours");
+                        continue;
+                    }
+                    
+                    commandController.CreateEPA(employementId, activityId, allocatedHours);
+                }
+                continue;
+            }
+
+            if (command == "create" && args?.Length > 2)
+            {
+                string activityName = args[1];
+                if (args[0] == "activity_type")
+                {
+                    float factor;
+                    if (!float.TryParse(args[2], out factor))
+                    {
+                        Console.WriteLine("Write a float for the factor");
+                        continue;
+                    }
+                    commandController.CreateActivityType(activityName, factor);
+                    continue;
+                }
+
+                if (args[0] == "activity" && args?.Length > 3)
+                {
+                    int instanceId;
+                    float plannedHours;
+                    if (!int.TryParse(args[2], out instanceId) || !float.TryParse(args[3], out plannedHours))
+                    {
+                        Console.WriteLine("Write numbers for instance ID and planned hours");
+                        continue;
+                    }
+                    commandController.CreateActivity(activityName, instanceId, plannedHours);
+                    continue;
                 }
             }
             

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("UniversityDBApp")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fbf0fb2a87c94ff11b38885d39f3c0f0b2088bfb")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+da06ef2156ee45f5e5a515e252556ff252b23b62")]
 [assembly: System.Reflection.AssemblyProductAttribute("UniversityDBApp")]
 [assembly: System.Reflection.AssemblyTitleAttribute("UniversityDBApp")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -29,9 +29,11 @@ static class Display
         Console.WriteLine(teacher.ToString());
     }
     
-    public static void Activities(List<Activity> activities)
+    public static void Activities(List<Activity> activities, bool isTeacher)
     {
-        var table = new ConsoleTable("planned activity id", "activity name", "planned hours (no factor)", "factor");
+        ConsoleTable table;
+            if (isTeacher) table = new ConsoleTable("planned activity id", "instance id", "activity name", "alloacted hours (no factor)", "factor");
+            else table = new ConsoleTable("planned activity id", "instance id", "activity name", "planned hours (no factor)", "factor");
         foreach (var activity in activities)
         {
             activity.AddRow(table);

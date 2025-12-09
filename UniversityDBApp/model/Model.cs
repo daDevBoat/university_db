@@ -68,13 +68,15 @@ public class TeachingCost
 public class Activity
 {
     public int ActivityId { get; }
+    public int InstanceId { get; }
     public string ActivityName { get; }
     public float PlannedHours { get; set; }
     public float Factor { get;}
 
-    public Activity(int activityId, string activityName, float plannedHours, float factor)
+    public Activity(int activityId, int instanceId, string activityName, float plannedHours, float factor)
     {
         this.ActivityId = activityId;
+        this.InstanceId =  instanceId;
         this.ActivityName = activityName;
         this.PlannedHours = plannedHours;
         this.Factor = factor;
@@ -82,7 +84,7 @@ public class Activity
     
     public void AddRow(ConsoleTable table)
     {
-        table.AddRow(this.ActivityId, this.ActivityName, this.PlannedHours, this.Factor);
+        table.AddRow(this.ActivityId, this.InstanceId, this.ActivityName, this.PlannedHours, this.Factor);
     }
 }
 

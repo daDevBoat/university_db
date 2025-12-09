@@ -128,5 +128,52 @@ public class Controller
             throw;
         }
     }
+
+    public void DeleteEPA(int employementId, int activityId)
+    {
+        try
+        {
+            _uniDb.DeleteEmployeePlannedActivity(employementId, activityId);
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
+    public void CreateEPA(int employementId, int activityId, float allocatedHours)
+    {
+        try
+        {
+            _uniDb.CreateEmployeePlannedActivity(employementId, activityId, allocatedHours);
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
+
+    public void CreateActivityType(string activityName, float factor)
+    {
+        try
+        {
+            _uniDb.CreateActivityType(activityName, factor);
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
+    
+    public void CreateActivity(string activityName, int instanceId, float plannedHours)
+    {
+        try
+        {
+            _uniDb.CreateActivity(activityName, instanceId, plannedHours);
+        }
+        catch (NpgsqlException ex)
+        {
+            throw;
+        }
+    }
 }
 
