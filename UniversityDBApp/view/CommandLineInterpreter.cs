@@ -9,261 +9,50 @@ public static class CommandLineInterpreter
     public static void Run()
     {
         Console.WriteLine("This is the terminal for the University DB Application");
-        Console.WriteLine("Write your commands here\n");
-        
-        Controller commandController = new Controller();
-
-        while (true)
-        {
-            Console.Write("> ");
-            string[]? input = Console.ReadLine()?.Split(" ");
-            string? command = input?[0];
-            string[]? args = input?.Skip(1).ToArray();
-
-            if (command == null) continue;
-            
-            if (command == "exit" || command == "quit" || command == "q")
-            {
-                Console.WriteLine("Exiting...");
-                commandController.Dispose();
-                return;
-            }
-
-            if (command == "find" && args?.Length > 1)
-            {
-
-                if (args[0] == "course" && args?.Length > 2)
-                {
-                    if (args[1] == "id")
-                    {
-                        int instanceId;
-                        if (!int.TryParse(args[2], out instanceId))
-                        {
-                            Console.WriteLine("Write an integer for the instance ID");
-                            continue;
-                        }
-                        Course? course = commandController.FindCourseById(instanceId);
-
-                        if (course == null)
-                        {
-                            Console.WriteLine($"No course found with instance ID: {instanceId}");
-                            continue;
-                        }
-                        
-                        Display.Course(course);
-                        continue;
-                    }
-
-                    if (args[1] == "year" && args?.Length > 2)
-                    {
-                        int year;
-                        if (!int.TryParse(args[2], out year))
-                        {
-                            Console.WriteLine("Write an integer for the year");
-                            continue;
-                        }
-                        List<Course>? courses = commandController.FindCoursesByYear(year);
-
-                        if (courses == null || courses.Count == 0)
-                        {
-                            Console.WriteLine($"No courses found for the year: {year}");
-                            continue;
-                        }
-                        
-                        Display.Courses(courses);
-                        continue;
-                    }
-                }
-
-                if (args[0] == "cost" && args?.Length > 1)
-                {
-                    //Console.WriteLine("Hei");
-                    int instanceId;
-                    if (!int.TryParse(args[1], out instanceId))
-                    {
-                        Console.WriteLine("Write an integer for the instance ID");
-                        continue;
-                    }
-
-                    TeachingCost? cost = commandController.CalculateTeachingCost(instanceId);
-                    if (cost == null)
-                    {
-                        Console.WriteLine($"No courses found to calculate cost with id: {instanceId}");
-                        continue;
-                    }
-                    Display.TeachingCost(cost);
-                    continue;
-                }
-
-                if (args[0] == "teacher" && args?.Length > 1)
-                {
-                    int employementID;
-                    if (!int.TryParse(args[1], out employementID))
-                    {
-                        Console.WriteLine("Write an integer for the employement ID");
-                        continue;
-                    }
-                    Teacher? teacher = commandController.FindTeacher(employementID);
-                    if (teacher == null)
-                    {
-                        Console.WriteLine("No teacher found");
-                        continue;
-                    }
-                    Display.Teacher(teacher);
-                    continue;
-                }
-                
-                if (args[0] == "activities" && args?.Length > 2)
-                {
-                    int id;
-                    if (!int.TryParse(args[2], out id))
-                    {
-                        Console.WriteLine("Write an integer for the ID");
-                        continue;
-                    }
-
-                    List<Activity>? activities = null;
-                    if (args[1] == "teacher") activities = commandController.FindActivitiesByEmployementId(id);
-                    else if (args[1] == "course") activities = commandController.FindActivitiesByInstanceId(id);
-                    
-                    if (activities ==  null) 
-                    {
-                        Console.WriteLine("No activities found");
-                        continue;
-                    }
-                    if (args[1] == "teacher") Display.Activities(activities, true);
-                    else if (args[1] == "course") Display.Activities(activities, false);
-                    continue;
-                    
-                }
-            }
-
-            if (command == "update" && args?.Length > 2)
-            {
-                if (args[0] == "course")
-                {
-                    int instanceId;
-                    if (!int.TryParse(args[1], out instanceId))
-                    {
-                        Console.WriteLine("Write an integer for the instance ID");
-                        continue;
-                    }
-
-                    if (args[2] == "num_students")
-                    {
-                        int numStudents;
-                        if (!int.TryParse(args[3], out numStudents))
-                        {
-                            Console.WriteLine("Write an integer for the number of students");
-                            continue;
-                        }
-
-                        commandController.UpdateNumStudentsById(instanceId, numStudents); // TODO error handling
-                        /*
-                        if ()
-                        {
-                            Console.WriteLine("Updated failed");
-                        }
-                        */
-                        continue;
-                    }
-                }
-            }
-
-            if ((command == "deallocate" || command == "allocate") && args?.Length > 1)
-            {
-                int employementId, activityId;
-                if (!int.TryParse(args[0], out employementId) ||  !int.TryParse(args[1], out activityId))
-                {
-                    Console.WriteLine("Write an integer for the IDs");
-                    continue;
-                }
-                if (command == "deallocate") commandController.DeleteEPA(employementId, activityId);
-                else
-                {
-                    float allocatedHours;
-                    if (args?.Length < 3 || !float.TryParse(args[2], out allocatedHours))
-                    {
-                        Console.WriteLine("Write an integer for the allocated hours");
-                        continue;
-                    }
-                    
-                    commandController.CreateEPA(employementId, activityId, allocatedHours);
-                }
-                continue;
-            }
-
-            if (command == "create" && args?.Length > 2)
-            {
-                string activityName = args[1];
-                if (args[0] == "activity_type")
-                {
-                    float factor;
-                    if (!float.TryParse(args[2], out factor))
-                    {
-                        Console.WriteLine("Write a float for the factor");
-                        continue;
-                    }
-                    commandController.CreateActivityType(activityName, factor);
-                    continue;
-                }
-
-                if (args[0] == "activity" && args?.Length > 3)
-                {
-                    int instanceId;
-                    float plannedHours;
-                    if (!int.TryParse(args[2], out instanceId) || !float.TryParse(args[3], out plannedHours))
-                    {
-                        Console.WriteLine("Write numbers for instance ID and planned hours");
-                        continue;
-                    }
-                    commandController.CreateActivity(activityName, instanceId, plannedHours);
-                    continue;
-                }
-            }
-            
-            Console.WriteLine("Write a valid command. To see a list of valid commands write: help");
-        }
-    }
-
-    public static void Run2()
-    {
-        Console.WriteLine("This is the terminal for the University DB Application");
         Console.WriteLine("Write your commands here and type help for available commands\n");
         
 
         while (true)
         {
-            Console.Write("> ");
-            string[]? input = Console.ReadLine()?.Split(" ");
-            string? command = input?[0];
-            string[]? args = input?.Skip(1).ToArray();
-            
-            if (command == null) continue;
-
-            switch (command)
+            try
             {
-                case "exit":
-                case "quit":
-                    CommandHandler.Exit();
-                    return;
-                case "find" when args?.Length == 3:
-                    CommandHandler.Find(args);
-                    break;
-                case "update" when args?.Length == 4:
-                    CommandHandler.Update(args);
-                    break;
-                case "allocate" when args?.Length == 6:
-                    CommandHandler.Allocate(args);
-                    break;
-                case "deallocate" when args?.Length == 4:
-                    CommandHandler.DeAllocate(args);
-                    break;
-                default:
-                    Console.WriteLine("Write a valid command. To see a list of valid commands write: help");
-                    break;
+                Console.Write("> ");
+                string[]? input = Console.ReadLine()?.Split(" ");
+                string? command = input?[0];
+                string[]? args = input?.Skip(1).ToArray();
+
+                if (command == null) continue;
+
+                switch (command)
+                {
+                    case "exit":
+                    case "quit":
+                        CommandHandler.Exit();
+                        return;
+                    case "find" when args?.Length == 3:
+                        CommandHandler.Find(args);
+                        break;
+                    case "update" when args?.Length == 4:
+                        CommandHandler.Update(args);
+                        break;
+                    case "allocate" when args?.Length == 6:
+                        CommandHandler.Allocate(args);
+                        break;
+                    case "deallocate" when args?.Length == 4:
+                        CommandHandler.DeAllocate(args);
+                        break;
+                    case "create" when args?.Length >= 5:
+                        CommandHandler.Create(args);
+                        break;
+                    default:
+                        Console.WriteLine("Write a valid command. To see a list of valid commands write: help");
+                        break;
+                }
             }
-            
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
         }
     }
 }

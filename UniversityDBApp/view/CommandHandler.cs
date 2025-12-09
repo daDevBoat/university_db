@@ -42,7 +42,7 @@ public static class CommandHandler
                 FindActivityByIdHandler(args[2], "teacherId");
                 break;
             case "activities" when args[1] == "course":
-                FindActivityByIdHandler(args[2], "instanceId");
+                FindActivityByIdHandler(args[2], "courseId");
                 break;
             default:
                 Console.WriteLine("Write a valid find command. To see a list of valid commands write: help");
@@ -79,6 +79,23 @@ public static class CommandHandler
         else Console.WriteLine("Write a valid allocate command. To see a list of valid commands write: help");
     }
 
+    public static void Create(string[] args)
+    {
+        string createType = args[0];
+        switch (createType)
+        {
+            case "activity_type" when args[1] == "name" && args[3] == "factor":
+                CreateActivityTypeHandler(args[2], args[4]);
+                break;
+            case "activity" when args is [_, "name", _, "course", _, "hours", _]:
+                CreateActivityHandler(args[2], args[4], args[6]);
+                break;
+            default:
+                Console.WriteLine("Write a valid create command. To see a list of valid commands write: help");
+                break;
+        }
+    }
+    
     /*
      * The private methods are used by the CommandHandler to handle:
      * the different methods needed to be called due to different command inputs,
@@ -108,14 +125,14 @@ public static class CommandHandler
     
     private static void FindCourseByIdHandler(string argId)
     {
-        int? instanceId = ParseInteger(argId, "id");
-        if (instanceId == null) return;
+        int? courseId = ParseInteger(argId, "id");
+        if (courseId == null) return;
 
         try
         {
-            Course? course = _cmdController.FindCourseById((int) instanceId);
+            Course? course = _cmdController.FindCourseById((int) courseId);
             if (course != null) Display.Course(course);
-            else Console.WriteLine($"No course found with instance ID: {instanceId}");
+            else Console.WriteLine($"No course found with instance ID: {courseId}");
         }
         catch (Exception e)
         {
@@ -141,13 +158,13 @@ public static class CommandHandler
 
     private static void FindTeachingCostByIdHandler(string argId)
     {
-        int? instanceId = ParseInteger(argId, "id");
-        if (instanceId == null) return;
+        int? courseId = ParseInteger(argId, "id");
+        if (courseId == null) return;
         try
         {
-            TeachingCost? cost = _cmdController.CalculateTeachingCost((int) instanceId);
+            TeachingCost? cost = _cmdController.CalculateTeachingCost((int) courseId);
             if (cost != null) Display.TeachingCost(cost);
-            else Console.WriteLine($"No course instance found with instance ID: {instanceId} to calculate cost: {cost}");
+            else Console.WriteLine($"No course instance found with instance ID: {courseId} to calculate cost: {cost}");
         }
         catch (Exception e)
         {
@@ -178,7 +195,7 @@ public static class CommandHandler
         try
         {
             List<Activity>? activities = null;
-            if (idType == "instanceId") activities = _cmdController.FindActivitiesByInstanceId((int)id);
+            if (idType == "courseId") activities = _cmdController.FindActivitiesByInstanceId((int)id);
             if (idType == "teacherId") activities = _cmdController.FindActivitiesByEmployementId((int)id);
             
             if (activities != null) Display.Activities(activities, idType == "teacherId");
@@ -190,8 +207,7 @@ public static class CommandHandler
         }
     }
     
-    /* Update handlers */
-
+    
     private static void UpdateCourseNumStudentsHandler(string argId, string argNumStudents)
     {
         int? id = ParseInteger(argId, "id");
@@ -207,8 +223,7 @@ public static class CommandHandler
         }
     }
     
-    /* Allocation handlers */
-
+   
     private static void AllocateHandler(string argTeacherId, string argActivityId, string argHours)
     {
         int? teacherId = ParseInteger(argTeacherId, "teacher");
@@ -221,8 +236,7 @@ public static class CommandHandler
         }
         catch (NpgsqlException e)
         {
-            if (e.SqlState == "23505") Console.WriteLine("Teacher already allocated to activity");
-            else Console.WriteLine(e.Message);
+            Console.WriteLine(e.SqlState == "23505" ? "Teacher already allocated to activity" : e.Message);
         }
         catch (Exception e)
         {
@@ -244,8 +258,37 @@ public static class CommandHandler
             Console.WriteLine(e.Message);
         }
     }
+
+    private static void CreateActivityTypeHandler(string argName, string argFactor)
+    {
+        float? factor = ParseFloat(argFactor, "factor");
+        if (factor == null || argName.Length == 0) return;
+        try
+        {
+            _cmdController.CreateActivityType(argName, (float) factor);
+        }
+        catch (NpgsqlException e)
+        {
+            Console.WriteLine(e.SqlState == "23505" ? "Activity type with that name already exists" : e.Message);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }
+    }
     
-    
-    
-    
+    private static void CreateActivityHandler(string argName, string argId, string argHours)
+    {
+        int? courseId = ParseInteger(argId, "id");
+        float?  hours = ParseFloat(argHours, "hours");
+        if (courseId == null || hours == null || argName.Length == 0) return;
+        try
+        {
+            _cmdController.CreateActivity(argName, (int) courseId, (float) hours);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }
+    }
 }
