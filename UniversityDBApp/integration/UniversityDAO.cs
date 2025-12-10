@@ -13,6 +13,7 @@ public class UniversityDAO : IDisposable
     public UniversityDAO()
     {
         ConnectToDb();
+        // Throw DB connection exception here
     }
     
     public void ConnectToDb ()
@@ -209,12 +210,6 @@ public class UniversityDAO : IDisposable
     {
         try
         {
-            if (_transaction == null)
-            {
-                Console.WriteLine("Transaction not started for update");
-                return null;
-            }
-            
             /* finding the cost using the cost query */
             using var costCmd = new NpgsqlCommand(Statements.CostCalculationById, _connection, _transaction);
             costCmd.Parameters.AddWithValue("@id", course.InstanceId);

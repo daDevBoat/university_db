@@ -96,7 +96,7 @@ public class Teacher
     public string JobTitle { get; set; }
     public int DepartmentId { get; set; }
     public int SupervisorId { get; set; }
-    public List<Activity> TeachingActivities { get; }
+    public List<Activity>? TeachingActivities { get; }
 
     public Teacher(int employementId, string firstName, string lastName, string jobTitle, int departmentId, int supervisorId)
     {
@@ -106,11 +106,12 @@ public class Teacher
         this.JobTitle = jobTitle;
         this.DepartmentId = departmentId;
         this.SupervisorId = supervisorId;
-        this.TeachingActivities = new List<Activity>();
+        this.TeachingActivities = null;
     }
 
     public Activity? GetActivity(string activityName)
     {
+        if (this.TeachingActivities == null) return null;
         foreach (var activity in this.TeachingActivities) 
         {
             if (activity.ActivityName == activityName) return activity;

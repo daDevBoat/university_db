@@ -19,11 +19,9 @@ public class Controller
             Course? course = _uniDb.FindCourseByInstanceId(instanceId);
             return course;
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
-            Console.WriteLine(ex.Message);
-            Console.WriteLine(ex.SqlState);
-            return null;
+            throw;
         }
     }
 
@@ -33,32 +31,31 @@ public class Controller
         {
             List<Course>? courses = _uniDb.FindCoursesByYear(year);
             return courses;
-        } catch (NpgsqlException ex)
+        } 
+        catch (Exception)
         {
-            Console.WriteLine(ex.Message);
-        }
-        return null;
+            throw;
+        }        
     }
 
     public void UpdateNumStudentsById(int instanceId, int newNumStudents)
     {
-       
+
         try
         {
             _uniDb.StartTransaction();
             Course? course = _uniDb.FindCourseByInstanceId(instanceId);
 
-            if (course == null) return; //TODO exception handling
-            
+            if (course == null) throw new SelectForUpdateIsNullException();
+
             course.NumStudents = newNumStudents;
             _uniDb.UpdateCourseByInstanceId(course);
             _uniDb.CommitTransaction();
         }
-        catch (NpgsqlException ex)
+        catch (Exception e)
         {
-            Console.WriteLine(ex.Message);
             _uniDb.RollBackTransaction();
-            Console.WriteLine("Update was rolled back");
+            throw new DBUpdateFailedException(e);
         }
     }
 
@@ -66,16 +63,13 @@ public class Controller
     {
         try
         {
-            _uniDb.StartTransaction();
             Course? course = _uniDb.FindCourseByInstanceId(instanceId);
             if (course == null) return null;
             TeachingCost? cost = _uniDb.CalculateTeachingCost(course);
-            _uniDb.CommitTransaction();
             return cost;
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
-            _uniDb.RollBackTransaction();
             throw;
         }
     }
@@ -86,27 +80,24 @@ public class Controller
         {
             Teacher? teacher = _uniDb.FindTeacherByEmployementId(employementId);
             return teacher;
-        } catch (NpgsqlException ex)
+        } 
+        catch (Exception)
         {
-            Console.WriteLine(ex.Message);
+            throw;
         }
-        return null;
     }
 
     public List<Activity>? FindActivitiesByInstanceId(int instanceId)
     {
         try
         {
-            _uniDb.StartTransaction();
             Course? course = _uniDb.FindCourseByInstanceId(instanceId);
             if (course == null) return null;
             List<Activity>? activities = _uniDb.FindActivitiesByCourse(course);
-            _uniDb.CommitTransaction();
             return activities;
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
-            return null;
             throw;
         }
     }
@@ -115,16 +106,13 @@ public class Controller
     {
         try
         {
-            _uniDb.StartTransaction();
             Teacher? teacher = _uniDb.FindTeacherByEmployementId(employementId);
             if (teacher == null) return null;
             List<Activity>? activities = _uniDb.FindActivitiesByTeacher(teacher);
-            _uniDb.CommitTransaction();
             return activities;
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
-            return null;
             throw;
         }
     }
@@ -135,7 +123,7 @@ public class Controller
         {
             _uniDb.DeleteEmployeePlannedActivity(employementId, activityId);
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
             throw;
         }
@@ -146,7 +134,7 @@ public class Controller
         {
             _uniDb.CreateEmployeePlannedActivity(employementId, activityId, allocatedHours);
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
             throw;
         }
@@ -158,7 +146,7 @@ public class Controller
         {
             _uniDb.CreateActivityType(activityName, factor);
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
             throw;
         }
@@ -170,7 +158,7 @@ public class Controller
         {
             _uniDb.CreateActivity(activityName, instanceId, plannedHours);
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
             throw;
         }
