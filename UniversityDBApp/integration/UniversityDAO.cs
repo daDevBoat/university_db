@@ -1,9 +1,9 @@
-﻿using System.Net;
+﻿using Npgsql;
+using System.Net;
+using System.IO;
+using System.Data;
 using UniversityDBApp.model;
 namespace UniversityDBApp.integration;
-using Npgsql;
-using System.IO;
-
 
 public class UniversityDAO : IDisposable
 {
@@ -12,8 +12,15 @@ public class UniversityDAO : IDisposable
 
     public UniversityDAO()
     {
-        ConnectToDb();
-        // Throw DB connection exception here
+        try
+        {
+            ConnectToDb();
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+        
     }
     
     public void ConnectToDb ()
@@ -26,9 +33,8 @@ public class UniversityDAO : IDisposable
         {
             _connection = new NpgsqlConnection(connString);
             _connection.Open();
-            //Console.WriteLine("Connection successfully established");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
@@ -36,19 +42,17 @@ public class UniversityDAO : IDisposable
     
     public NpgsqlConnection GetConnection() => _connection;
 
-    public void StartTransaction()
+    public void StartTransaction(IsolationLevel level=IsolationLevel.ReadCommitted)
     {
         if (_transaction != null)
         {
-            //TODO Console.WriteLine("Current transaction already started");
-            return;
+            throw new TransactionAlreadyStartedException();
         }
-
         try
         {
-            _transaction = _connection.BeginTransaction();
+            _transaction = _connection.BeginTransaction(level);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
@@ -59,15 +63,14 @@ public class UniversityDAO : IDisposable
     {
         if (_transaction == null)
         {
-            Console.WriteLine("No transaction is started");
-            return;
+            throw new NoTransactionStartedException();
         }
 
         try
         {
             _transaction.Commit();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             _transaction?.Rollback();
             throw;
@@ -83,15 +86,14 @@ public class UniversityDAO : IDisposable
     {
         if (_transaction == null)
         {
-            Console.WriteLine("No transaction is started");
-            return;
+            throw new NoTransactionStartedException();
         }
 
         try
         {
             _transaction.Rollback();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
@@ -143,7 +145,7 @@ public class UniversityDAO : IDisposable
             selectInstanceCmd.Dispose();
             return course;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
@@ -179,34 +181,35 @@ public class UniversityDAO : IDisposable
             } while (reader.Read());
             return courses;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
     }
 
-    public void UpdateCourseByInstanceId(Course course)
+    public int? UpdateCourseByInstanceId(Course course)
     {
         try
         {
             if (_transaction == null)
             {
-                //TODO Console.WriteLine("Transaction not started for update");
+                throw new NoTransactionStartedException("No transaction has been started for the update.");
             }
                 
             /* UPDATING the course instance */
             using var updateInstanceCmd = new NpgsqlCommand(Statements.UpdateNumStudentsById, _connection, _transaction);
             updateInstanceCmd.Parameters.AddWithValue("@id", course.InstanceId);
             updateInstanceCmd.Parameters.AddWithValue("@num_students", course.NumStudents);
-            updateInstanceCmd.ExecuteNonQuery();
+            int rowsAffected = updateInstanceCmd.ExecuteNonQuery();
+            return rowsAffected;
         } 
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
     }
 
-    public TeachingCost? CalculateTeachingCost(Course course)
+    public TeachingCost? FindTeachingCost(Course course)
     {
         try
         {
@@ -228,7 +231,7 @@ public class UniversityDAO : IDisposable
             );
             return cost;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
@@ -269,7 +272,7 @@ public class UniversityDAO : IDisposable
             selectActivitiesCmd.Dispose();
             return activities;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
@@ -310,7 +313,7 @@ public class UniversityDAO : IDisposable
             selectActivitiesCmd.Dispose();
             return activities;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
@@ -348,28 +351,29 @@ public class UniversityDAO : IDisposable
             return teacher;
 
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
     }
     
-    public void DeleteEmployeePlannedActivity(int employementId, int plannedActivityId)
+    public int? DeleteEmployeePlannedActivity(int employementId, int plannedActivityId)
     {
         try
         {
             using var deleteActivityCmd = new NpgsqlCommand(Statements.DeleteEmployeePlannedActivityById, _connection);
             deleteActivityCmd.Parameters.AddWithValue("@employement_id", employementId);
             deleteActivityCmd.Parameters.AddWithValue("@planned_activity_id", plannedActivityId);
-            deleteActivityCmd.ExecuteNonQuery();
+            int rowsAffected = deleteActivityCmd.ExecuteNonQuery();
+            return rowsAffected;
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
             throw;
         }
     }
 
-    public void CreateEmployeePlannedActivity(int employementId, int plannedActivityId, float allocatedHours)
+    public int? CreateEmployeePlannedActivity(int employementId, int plannedActivityId, float allocatedHours)
     {
         try
         {
@@ -377,30 +381,32 @@ public class UniversityDAO : IDisposable
             createActivityCmd.Parameters.AddWithValue("@employement_id", employementId);
             createActivityCmd.Parameters.AddWithValue("@planned_activity_id", plannedActivityId);
             createActivityCmd.Parameters.AddWithValue("@allocated_hours", allocatedHours);
-            createActivityCmd.ExecuteNonQuery();
+            int rowsAffected = createActivityCmd.ExecuteNonQuery();
+            return rowsAffected;
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
             throw;
         }
     }
 
-    public void CreateActivityType(string activityName, float factor)
+    public int? CreateActivityType(string activityName, float factor)
     {
         try
         {
             using var createActivityTypeCmd = new NpgsqlCommand(Statements.CreateActivityType, _connection);
             createActivityTypeCmd.Parameters.AddWithValue("@activity_name", activityName);
             createActivityTypeCmd.Parameters.AddWithValue("@factor", factor);
-            createActivityTypeCmd.ExecuteNonQuery();
+            int rowsAffected = createActivityTypeCmd.ExecuteNonQuery();
+            return rowsAffected;
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
             throw;
         }
     }
     
-    public void CreateActivity(string activityName, int instanceId, float plannedHours)
+    public int? CreateActivity(string activityName, int instanceId, float plannedHours)
     {
         try
         {
@@ -408,51 +414,12 @@ public class UniversityDAO : IDisposable
             createActivityCmd.Parameters.AddWithValue("@activity_name", activityName);
             createActivityCmd.Parameters.AddWithValue("@instance_id", instanceId);
             createActivityCmd.Parameters.AddWithValue("@planned_hours", plannedHours);
-            createActivityCmd.ExecuteNonQuery();
+            int rowsAffected = createActivityCmd.ExecuteNonQuery();
+            return rowsAffected;
         }
-        catch (NpgsqlException ex)
+        catch (Exception)
         {
             throw;
         }
     }
-    
-   
 }
-
-
-/* 
-CODE GRAVEYARD:
-public List<TeachingActivity> FindAllTeachingActivities()
-    {
-        List<TeachingActivity> activities = new List<TeachingActivity>();
-        try
-        {
-            NpgsqlCommand selectCommand;
-            if (_transaction == null)
-            {
-                selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection);
-            }
-            else
-            {
-                selectCommand = new NpgsqlCommand("SELECT * FROM teaching_activity", _connection, _transaction);
-            }
-            
-            using var reader = selectCommand.ExecuteReader();
-            
-            while (reader.Read())
-            {
-                int teachingActivityId = reader.GetInt32(0);
-                string teachingActivityName = reader.GetString(1);
-                float factor = reader.GetFloat(2);
-
-                activities.Add(new TeachingActivity(teachingActivityId, teachingActivityName, factor));
-            }
-            selectCommand.Dispose();
-        }
-        catch (NpgsqlException ex)
-        {
-            Console.WriteLine(ex.Message);
-        }
-        return activities;
-    }
-*/

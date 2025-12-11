@@ -1,11 +1,24 @@
 ﻿using UniversityDBApp.integration;
 using UniversityDBApp.model;
 using Npgsql;
+using System.Data;
 namespace UniversityDBApp.controller;
 
 public class Controller
 {
-    private UniversityDAO _uniDb = new UniversityDAO();
+    private UniversityDAO _uniDb { get;}
+
+    public Controller()
+    {
+        try
+        {
+            _uniDb = new UniversityDAO();
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
 
     public void Dispose()
     {
@@ -38,24 +51,25 @@ public class Controller
         }        
     }
 
-    public void UpdateNumStudentsById(int instanceId, int newNumStudents)
+    public int? UpdateNumStudentsById(int instanceId, int newNumStudents)
     {
 
         try
         {
-            _uniDb.StartTransaction();
+            _uniDb.StartTransaction(IsolationLevel.Serializable);
             Course? course = _uniDb.FindCourseByInstanceId(instanceId);
 
             if (course == null) throw new SelectForUpdateIsNullException();
 
             course.NumStudents = newNumStudents;
-            _uniDb.UpdateCourseByInstanceId(course);
+            int? rowsAffected = _uniDb.UpdateCourseByInstanceId(course);
             _uniDb.CommitTransaction();
+            return rowsAffected;
         }
         catch (Exception e)
         {
             _uniDb.RollBackTransaction();
-            throw new DBUpdateFailedException(e);
+            throw new DBUpdateFailedException(e.Message);
         }
     }
 
@@ -65,7 +79,7 @@ public class Controller
         {
             Course? course = _uniDb.FindCourseByInstanceId(instanceId);
             if (course == null) return null;
-            TeachingCost? cost = _uniDb.CalculateTeachingCost(course);
+            TeachingCost? cost = _uniDb.FindTeachingCost(course);
             return cost;
         }
         catch (Exception)
@@ -74,7 +88,7 @@ public class Controller
         }
     }
 
-    public Teacher? FindTeacher(int employementId)
+    public Teacher? FindTeacherById(int employementId)
     {
         try
         {
@@ -117,22 +131,24 @@ public class Controller
         }
     }
 
-    public void DeleteEPA(int employementId, int activityId)
+    public int? DeleteEPA(int employementId, int activityId)
     {
         try
         {
-            _uniDb.DeleteEmployeePlannedActivity(employementId, activityId);
+            int? rowsAffected = _uniDb.DeleteEmployeePlannedActivity(employementId, activityId);
+            return rowsAffected;
         }
         catch (Exception)
         {
             throw;
         }
     }
-    public void CreateEPA(int employementId, int activityId, float allocatedHours)
+    public int? CreateEPA(int employementId, int activityId, float allocatedHours)
     {
         try
         {
-            _uniDb.CreateEmployeePlannedActivity(employementId, activityId, allocatedHours);
+            int? rowsAffected = _uniDb.CreateEmployeePlannedActivity(employementId, activityId, allocatedHours);
+            return rowsAffected;
         }
         catch (Exception)
         {
@@ -140,11 +156,12 @@ public class Controller
         }
     }
 
-    public void CreateActivityType(string activityName, float factor)
+    public int? CreateActivityType(string activityName, float factor)
     {
         try
         {
-            _uniDb.CreateActivityType(activityName, factor);
+            int? rowsAffected = _uniDb.CreateActivityType(activityName, factor);
+            return rowsAffected;
         }
         catch (Exception)
         {
@@ -152,11 +169,12 @@ public class Controller
         }
     }
     
-    public void CreateActivity(string activityName, int instanceId, float plannedHours)
+    public int? CreateActivity(string activityName, int instanceId, float plannedHours)
     {
         try
         {
-            _uniDb.CreateActivity(activityName, instanceId, plannedHours);
+            int? rowsAffected = _uniDb.CreateActivity(activityName, instanceId, plannedHours);
+            return rowsAffected;
         }
         catch (Exception)
         {

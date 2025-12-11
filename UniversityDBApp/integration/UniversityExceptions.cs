@@ -9,6 +9,14 @@ public class NoTransactionStartedException : Exception
     public NoTransactionStartedException(string message, Exception e) : base(message, e) {}
 }
 
+public class TransactionAlreadyStartedException : Exception
+{
+    public TransactionAlreadyStartedException() : base("Transaction has already started started. Cannot start a new one.") {}
+    public TransactionAlreadyStartedException(string message) : base(message) {}
+    public TransactionAlreadyStartedException(Exception e) : base("Transaction has already started started. Cannot start a new one.", e) {}
+    public TransactionAlreadyStartedException(string message, Exception e) : base(message, e) {}
+}
+
 public class DBUpdateFailedException : Exception
 {
     public DBUpdateFailedException() : base("The update to the DB failed") {}

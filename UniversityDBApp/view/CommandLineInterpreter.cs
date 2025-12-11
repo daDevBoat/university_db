@@ -9,8 +9,8 @@ public static class CommandLineInterpreter
     public static void Run()
     {
         Console.WriteLine("This is the terminal for the University DB Application");
-        Console.WriteLine("Write your commands here and type help for available commands\n");
-        
+
+        CommandHandler.Help(null);
 
         while (true)
         {
@@ -26,9 +26,11 @@ public static class CommandLineInterpreter
                 switch (command)
                 {
                     case "exit":
-                    case "quit":
                         CommandHandler.Exit();
                         return;
+                    case "help":
+                        CommandHandler.Help(args?[0]);
+                        break;
                     case "find" when args?.Length == 3:
                         CommandHandler.Find(args);
                         break;

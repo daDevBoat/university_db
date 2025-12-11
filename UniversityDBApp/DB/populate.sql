@@ -238,7 +238,11 @@ BEGIN
 END
 $$;
 
--- 7. Create 50 courses, each with 1-3 layouts. Deterministic min/max and HP values
+-----------------------------------------------------------------------
+-- 7. Create courses so that ALL layouts with the same course_name
+--    share the EXACT same course_code.
+--    Deterministic min/max and HP values preserved.
+-----------------------------------------------------------------------
 DO $$
 DECLARE
     course_names TEXT[] := ARRAY[
@@ -254,37 +258,64 @@ DECLARE
         'Discrete Mathematics','Data Mining','Secure Programming','Mobile Application Development',
         'Web Technologies','Big Data Systems','Ethics in Technology','Project Management for IT',
         'Advanced Algorithms','Computational Geometry','Signal Processing for Communications',
-        'Software Testing','DevOps Practices','User Experience Design','IoT Systems'
+        'Software Testing','DevOps Practices','User Experience Design','IoT Systems',
+
+        -- add some duplicates so grouping is testable
+        'Discrete Mathematics','Algorithms and Data Structures','Data Mining','Formal Methods'
     ];
 
-    base_course_count INT := 50;
+    -- Deterministic mapping from course_name → course_code
+    course_code_map JSONB := '{}'::JSONB;
+
     idx INT;
     layouts INT;
-    code TEXT;
     cname TEXT;
-    min_vals INT[] := ARRAY[10,20,30,40,50];
+    code TEXT;
+
+    min_vals INT[] := ARRAY[0,10,20,30,40,50];
     max_vals INT[] := ARRAY[150,200,250,300,400,500,600];
+
     lay_min INT;
     lay_max INT;
-    hp_vals REAL[] := ARRAY[7.5, 7.5, 7.5, 7.5, 7.5, 7.5, 6, 9, 15, 4.5]; -- mostly 7.5
+
+    hp_vals REAL[] := ARRAY[7.5,7.5,7.5,7.5,7.5,7.5,6,9,15,4.5];
     hp_val REAL;
-    study_periods period_enum[] := ARRAY['1'::period_enum,'2'::period_enum,'3'::period_enum,'4'::period_enum];
+
+    study_periods period_enum[] := ARRAY['1','2','3','4'];
+
     v_layout_id INT;
+    base_course_count INT := array_length(course_names,1);
 BEGIN
+    -------------------------------------------------------------------
+    -- 1. Assign deterministic course codes based on name content
+    -------------------------------------------------------------------
     FOR idx IN 1..base_course_count LOOP
-        cname := course_names[1 + ((idx*3) % array_length(course_names,1))];
-        layouts := 1 + ((idx * 7) % 3); -- 1..3 layouts
-        code := chr(65 + ((idx) % 26))
-                || chr(65 + ((idx*5) % 26))
-                || lpad(((1000 + ((idx*31 + 13) % 9000))::text),4,'0');
+        cname := course_names[idx];
+
+        -- If course_code_map does not have this name → generate one
+        IF course_code_map ? cname = FALSE THEN
+            -- deterministic code: based on a simple hash of the name
+            code :=
+                chr(65 + (length(cname) % 26)) ||
+                chr(65 + (ascii(substr(cname,1,1)) % 26)) ||
+                to_char(abs(hashtext(cname)) % 9000 + 1000, 'FM0000');
+
+            course_code_map := course_code_map || jsonb_build_object(cname, code);
+        END IF;
+    END LOOP;
+
+    -------------------------------------------------------------------
+    -- 2. Create layouts and instances, using the mapped consistent code
+    -------------------------------------------------------------------
+    FOR idx IN 1..base_course_count LOOP
+        cname := course_names[idx];
+        code := course_code_map ->> cname;
+
+        layouts := 1 + ((idx * 7) % 3);  -- 1–3 layouts per course name
 
         FOR i IN 1..layouts LOOP
-
-            -- deterministic min/max
             lay_min := min_vals[1 + ((idx + i) % array_length(min_vals,1))];
             lay_max := max_vals[1 + ((idx + i*2) % array_length(max_vals,1))];
-
-            -- deterministic HP: mostly 7.5
             hp_val := hp_vals[1 + ((idx + i) % array_length(hp_vals,1))];
 
             INSERT INTO course_layout (
@@ -292,34 +323,40 @@ BEGIN
                 min_students, max_students, hp, study_period
             )
             VALUES (
-                code,  -- same code for multiple layouts
+                code,
                 cname,
                 lay_min, lay_max, hp_val,
                 study_periods[1 + ((idx + i) % 4)]
             )
             RETURNING course_layout_id INTO v_layout_id;
 
-            -- instance 1
+            -------------------------------------------------------------------
+            -- Instance #1 (never zero students)
+            -------------------------------------------------------------------
             INSERT INTO course_instance (course_layout_id, num_students, study_year)
             VALUES (
                 v_layout_id,
-                lay_min + ((idx*13 + i*7) % GREATEST(1, lay_max - lay_min + 1)),
+                GREATEST(1, lay_min + ((idx*13 + i*7) % GREATEST(1, lay_max - lay_min + 1))),
                 2020 + ((idx + i) % 7)
             );
 
-            -- optional 2nd instance
+            -------------------------------------------------------------------
+            -- Optional Instance #2
+            -------------------------------------------------------------------
             IF (idx + i) % 2 = 0 THEN
                 INSERT INTO course_instance (course_layout_id, num_students, study_year)
                 VALUES (
                     v_layout_id,
-                    lay_min + ((idx*17 + i*11) % GREATEST(1, lay_max - lay_min + 1)),
+                    GREATEST(1, lay_min + ((idx*17 + i*11) % GREATEST(1, lay_max - lay_min + 1))),
                     2020 + ((idx + i*3) % 7)
                 );
             END IF;
-        END LOOP;
-    END LOOP;
-END
-$$;
+
+        END LOOP; -- layouts
+    END LOOP; -- courses
+END $$;
+-----------------------------------------------------------------------
+
 
 
 -- 8. For each course_instance create 1..3 planned_activity records (use teaching_activity table)

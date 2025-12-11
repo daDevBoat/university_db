@@ -1,13 +1,74 @@
 ﻿using Npgsql;
 using UniversityDBApp.model;
 using UniversityDBApp.controller;
+using UniversityDBApp.integration;
+
 namespace UniversityDBApp.view;
 
 public static class CommandHandler
 {
-    private static Controller _cmdController = new Controller();
+    private static Controller _cmdController { get; }
+
+    static CommandHandler()
+    {
+        try
+        {
+            _cmdController = new Controller();
+            Console.WriteLine("Connection to database was sucessfully etstablished.\n");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("FATAL ERROR: " + ex.Message);
+            Environment.Exit(1);
+        }
+    }
     
     /* The public methods are the L1 handlers used by CommandLineInterpreter */
+    public static void Help(string? helpType)
+    {
+        if (helpType == null)
+        {
+            Console.WriteLine("Write help <command> to get help for that command. Available commands:");
+            Console.WriteLine("[exit, find, update, allocate, deallocate, create]\n");
+            return;
+        }
+
+        switch (helpType)
+        {
+            case "exit":
+                Console.WriteLine("Type exit to exit CLI.");
+                break;
+            case "find":
+                Console.WriteLine("Available find commands");
+                Console.WriteLine("find course id <courseId>");
+                Console.WriteLine("find courses year <year>");
+                Console.WriteLine("find cost course <courseId>");
+                Console.WriteLine("find teacher id <teacherId>");
+                Console.WriteLine("find activities teacher|course <teacherId|courseId>");
+                break;
+            case "update":
+                Console.WriteLine("Available update commands");
+                Console.WriteLine("update course <courseId> num_students <int>");
+                break;
+            case "allocate":
+                Console.WriteLine("Available allocate commands");
+                Console.WriteLine("allocate teacher <teacherId> activity <activityId> hours <int>");
+                break;
+            case "deallocate":
+                Console.WriteLine("Available deallocate commands");
+                Console.WriteLine("deallocate teacher <teacherId> activity <activityId>");
+                break;
+            case "create":
+                Console.WriteLine("Available create commands");
+                Console.WriteLine("create activity_type name <string> factor <float>");
+                Console.WriteLine("create activity name <string> course <courseId> hours <int>");
+                break;
+            default:
+                Console.WriteLine("Write a valid help command. To see a list of valid commands write: help");
+                break;
+        }
+    }
+    
     public static void Exit()
     {
         try
@@ -87,7 +148,7 @@ public static class CommandHandler
             case "activity_type" when args[1] == "name" && args[3] == "factor":
                 CreateActivityTypeHandler(args[2], args[4]);
                 break;
-            case "activity" when args is [_, "name", _, "course", _, "hours", _]:
+            case "activity" when args is [_, "name", _, "course", _, "hours", _]:   // can be done for the others as well
                 CreateActivityHandler(args[2], args[4], args[6]);
                 break;
             default:
@@ -178,7 +239,7 @@ public static class CommandHandler
         if (teacherId == null) return;
         try
         {
-            Teacher? teacher = _cmdController.FindTeacher((int) teacherId);
+            Teacher? teacher = _cmdController.FindTeacherById((int) teacherId);
             if (teacher != null) Display.Teacher(teacher);
             else Console.WriteLine($"No teacher found with employement ID: {teacherId}");
         }
@@ -215,7 +276,8 @@ public static class CommandHandler
         if (id == null || numStudents == null) return;
         try
         {
-            _cmdController.UpdateNumStudentsById((int) id, (int) numStudents);
+            int? rowsAffected = _cmdController.UpdateNumStudentsById((int) id, (int) numStudents);
+            if (rowsAffected != null) Console.WriteLine($"{rowsAffected} row(s) updated.");
         }
         catch (Exception e)
         {
@@ -232,7 +294,9 @@ public static class CommandHandler
         if (teacherId == null || activityId == null || hours == null) return;
         try
         {
-            _cmdController.CreateEPA((int)teacherId, (int)activityId, (int)hours);
+            int? rowsAffected = _cmdController.CreateEPA((int)teacherId, (int)activityId, (int)hours);
+            if (rowsAffected > 0) Console.WriteLine("Allocation was successful");
+            else Console.WriteLine("Allocation was unsuccessful");
         }
         catch (NpgsqlException e)
         {
@@ -251,7 +315,9 @@ public static class CommandHandler
         if (teacherId == null || activityId == null) return;
         try
         {
-            _cmdController.DeleteEPA((int)teacherId, (int)activityId);
+            int? rowsAffected = _cmdController.DeleteEPA((int)teacherId, (int)activityId);
+            if (rowsAffected > 0) Console.WriteLine("Deallocation was successful");
+            else Console.WriteLine("Deallocation was unsuccessful");
         }
         catch (Exception e)
         {
@@ -265,7 +331,9 @@ public static class CommandHandler
         if (factor == null || argName.Length == 0) return;
         try
         {
-            _cmdController.CreateActivityType(argName, (float) factor);
+            int? rowsAffected = _cmdController.CreateActivityType(argName, (float) factor);
+            if (rowsAffected > 0) Console.WriteLine("Creation was successful");
+            else Console.WriteLine("Creation was unsuccessful");
         }
         catch (NpgsqlException e)
         {
@@ -284,7 +352,9 @@ public static class CommandHandler
         if (courseId == null || hours == null || argName.Length == 0) return;
         try
         {
-            _cmdController.CreateActivity(argName, (int) courseId, (float) hours);
+            int? rowsAffected = _cmdController.CreateActivity(argName, (int) courseId, (float) hours);
+            if (rowsAffected > 0) Console.WriteLine("Creation was successful");
+            else Console.WriteLine("Creation was unsuccessful");
         }
         catch (Exception e)
         {
