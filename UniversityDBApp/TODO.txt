@@ -1,0 +1,4 @@
+﻿- Add IDisposbale wraper for command execution so using can be used also for where
+a transaction can be used
+- Make the querying async
+- Have a dependency injector to handle mutiple threads/calls on server
